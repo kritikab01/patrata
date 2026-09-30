@@ -1,0 +1,172 @@
+{
+  "model_version": "20260926-1024",
+  "features": [
+    "cibil_score",
+    "loan_term",
+    "income_annum",
+    "loan_amount",
+    "loan_to_income",
+    "total_assets",
+    "asset_coverage",
+    "no_of_dependents"
+  ],
+  "labels": {
+    "cibil_score": "CIBIL score",
+    "loan_term": "Loan term",
+    "income_annum": "Annual income",
+    "loan_amount": "Loan amount",
+    "loan_to_income": "Loan-to-income ratio",
+    "total_assets": "Total assets",
+    "asset_coverage": "Asset cover on the loan",
+    "no_of_dependents": "Dependents"
+  },
+  "monotone_constraints": {
+    "cibil_score": 1,
+    "loan_term": 0,
+    "income_annum": 0,
+    "loan_amount": 0,
+    "loan_to_income": -1,
+    "total_assets": 0,
+    "asset_coverage": 1,
+    "no_of_dependents": 0
+  },
+  "training_ranges": {
+    "cibil_score": [
+      300.0,
+      900.0
+    ],
+    "loan_term": [
+      2.0,
+      20.0
+    ],
+    "income_annum": [
+      200000.0,
+      9900000.0
+    ],
+    "loan_amount": [
+      300000.0,
+      39500000.0
+    ],
+    "loan_to_income": [
+      1.5,
+      4.0
+    ],
+    "total_assets": [
+      500000.0,
+      90700000.0
+    ],
+    "asset_coverage": [
+      0.75,
+      5.666666666666667
+    ],
+    "no_of_dependents": [
+      0.0,
+      5.0
+    ]
+  },
+  "params": {
+    "n_estimators": 300,
+    "max_depth": 4,
+    "learning_rate": 0.05,
+    "subsample": 0.9,
+    "colsample_bytree": 0.9,
+    "min_child_weight": 3,
+    "reg_lambda": 1.0,
+    "eval_metric": "logloss",
+    "random_state": 42
+  },
+  "data_source": "Kaggle: architsharma01/loan-approval-prediction-dataset",
+  "data_audit": {
+    "rows": 4269,
+    "approved_share": 0.622,
+    "approval_rate_cibil_below_550": 0.104,
+    "approval_rate_cibil_550_plus": 0.995,
+    "approval_rate_below_550_by_term": {
+      "2": 0.476,
+      "4": 0.568,
+      "6": 0.0,
+      "8": 0.0,
+      "10": 0.0,
+      "12": 0.0,
+      "14": 0.0,
+      "16": 0.0,
+      "18": 0.0,
+      "20": 0.0
+    },
+    "approval_rate_by_education": {
+      "Graduate": 0.625,
+      "Not Graduate": 0.62
+    },
+    "approval_rate_by_self_employed": {
+      "No": 0.622,
+      "Yes": 0.622
+    },
+    "negative_asset_rows": 28,
+    "loan_to_income_range": [
+      1.5,
+      4.0
+    ],
+    "one_line_rule_accuracy": 0.9576,
+    "one_line_rule": "approve if CIBIL >= 550 or loan term <= 4 years"
+  },
+  "metrics": {
+    "xgboost": {
+      "accuracy": 0.9871,
+      "roc_auc": 0.9996,
+      "precision_approve": 0.9887,
+      "recall_approve": 0.9906,
+      "recall_reject": 0.9814,
+      "f1": 0.9897,
+      "brier": 0.0082,
+      "confusion": {
+        "tn": 317,
+        "fp": 6,
+        "fn": 5,
+        "tp": 526
+      },
+      "cv_roc_auc_mean": 0.9991,
+      "cv_roc_auc_std": 0.0002
+    },
+    "logistic_regression": {
+      "accuracy": 0.9157,
+      "roc_auc": 0.9729,
+      "precision_approve": 0.9211,
+      "recall_approve": 0.9454,
+      "recall_reject": 0.8669,
+      "f1": 0.9331,
+      "brier": 0.0606,
+      "confusion": {
+        "tn": 280,
+        "fp": 43,
+        "fn": 29,
+        "tp": 502
+      }
+    }
+  },
+  "fairness_outcome_parity": {
+    "education": {
+      "Graduate": 0.62,
+      "Not Graduate": 0.626
+    },
+    "self_employed": {
+      "No": 0.634,
+      "Yes": 0.612
+    }
+  },
+  "global_importance": {
+    "cibil_score": 5.7245,
+    "loan_term": 1.7906,
+    "loan_amount": 1.4349,
+    "income_annum": 1.1278,
+    "asset_coverage": 0.3438,
+    "total_assets": 0.1704,
+    "no_of_dependents": 0.1119,
+    "loan_to_income": 0.0583
+  },
+  "limitations": [
+    "Labels follow a near-deterministic rule (CIBIL >= 550, or a short term), so high accuracy reflects a synthetic dataset, not real-world credit risk.",
+    "The data has no age, existing EMIs or repayment history; these are handled by policy rules, not the model.",
+    "Loan-to-income in training only spans 1.5x to 4.0x; applications outside the training range are referred to a human.",
+    "The target is past approval decisions, not actual default, so the model imitates past lenders rather than predicting repayment."
+  ]
+}

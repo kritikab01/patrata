@@ -1,0 +1,20 @@
+# Secrets: never commit
+.env
+**/.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.db
+
+# Node
+node_modules/
+frontend/dist/
+
+# Data (download from Kaggle; see docs/DATA_AND_MODEL.md)
+backend/data/*.csv
+
+# Mac
+.DS_Store
