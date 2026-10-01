@@ -8,13 +8,13 @@ export interface Review { final_decision: 'APPROVE' | 'DECLINE'; note: string; r
 
 export interface Application {
   age: number; no_of_dependents: number; income_annum: number; loan_amount: number; loan_term: number
-  cibil_score: number | null; residential_assets_value: number; commercial_assets_value: number
+  cibil_score: number; residential_assets_value: number; commercial_assets_value: number
   luxury_assets_value: number; bank_asset_value: number; existing_emi_monthly: number; annual_rate: number
-  employment_type: string; years_in_job: number; no_credit_history?: boolean
+  employment_type: string; years_in_job: number
 }
 
 export interface Result {
-  id: string; decision: Decision; approval_probability: number | null; reasons: string[]
+  id: string; decision: Decision; approval_probability: number; reasons: string[]
   rule_checks: RuleCheck[]; drivers: Driver[]; counterfactual: Counterfactual; flags: string[]
   warnings: string[]; emi_estimate: number; foir: number; model_version: string; created_at: string
   application: Application; sample: boolean; review: Review | null; status: string
@@ -27,7 +27,7 @@ export interface RepaymentRisk {
 }
 
 export interface Simulation {
-  decision: Decision; approval_probability: number | null; foir: number; emi_estimate: number
+  decision: Decision; approval_probability: number; foir: number; emi_estimate: number
   flags: string[]; rule_checks: RuleCheck[]; drivers: Driver[]; reasons: string[]
 }
 

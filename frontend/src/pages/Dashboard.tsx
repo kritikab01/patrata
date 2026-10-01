@@ -57,10 +57,10 @@ export default function Dashboard() {
             {s ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={daily} margin={{ left: -24, right: 4, top: 4 }}>
-                  <CartesianGrid vertical={false} stroke="#EFEFF1" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#52525B' }} tickLine={false} axisLine={false} interval={1} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#52525B' }} tickLine={false} axisLine={false} />
-                  <Tooltip cursor={{ fill: '#F4F4F5' }} contentStyle={{ borderRadius: 12, borderColor: '#E4E4E7', fontSize: 13 }} />
+                  <CartesianGrid vertical={false} stroke="#EBEEF3" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#4A5468' }} tickLine={false} axisLine={false} interval={1} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#4A5468' }} tickLine={false} axisLine={false} />
+                  <Tooltip cursor={{ fill: '#F2F4F7' }} contentStyle={{ borderRadius: 12, borderColor: '#D9DEE7', fontSize: 13 }} />
                   <Legend iconType="circle" wrapperStyle={{ fontSize: 13 }} />
                   <RBar dataKey="APPROVE" name="Approve" stackId="a" fill={TONE.APPROVE.hex} />
                   <RBar dataKey="REFER" name="Refer" stackId="a" fill={TONE.REFER.hex} />
@@ -92,11 +92,11 @@ export default function Dashboard() {
             {s ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={s.cibil_bands} margin={{ left: -20, right: 4, top: 4 }}>
-                  <CartesianGrid vertical={false} stroke="#EFEFF1" />
-                  <XAxis dataKey="band" tick={{ fontSize: 11, fill: '#52525B' }} tickLine={false} axisLine={false} />
-                  <YAxis tickFormatter={(v) => `${Math.round(v * 100)}%`} domain={[0, 1]} tick={{ fontSize: 11, fill: '#52525B' }} tickLine={false} axisLine={false} />
+                  <CartesianGrid vertical={false} stroke="#EBEEF3" />
+                  <XAxis dataKey="band" tick={{ fontSize: 11, fill: '#4A5468' }} tickLine={false} axisLine={false} />
+                  <YAxis tickFormatter={(v) => `${Math.round(v * 100)}%`} domain={[0, 1]} tick={{ fontSize: 11, fill: '#4A5468' }} tickLine={false} axisLine={false} />
                   <Tooltip formatter={(v: any, _n: any, p: any) => [`${Math.round(v * 100)}% of ${p.payload.count}`, 'Approved']} contentStyle={{ borderRadius: 12, fontSize: 13 }} />
-                  <RBar dataKey="approve_rate" fill="#0A0A0A" radius={[6, 6, 0, 0]} />
+                  <RBar dataKey="approve_rate" fill="#1E2A5A" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : <Skeleton className="h-full w-full" />}

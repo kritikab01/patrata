@@ -104,7 +104,7 @@ export function WhatIf({ r, onSave, busy }: { r: Result; onSave: (a: Result['app
   const a = r.application
   const [amt, setAmt] = useState(a.loan_amount)
   const [term, setTerm] = useState(a.loan_term)
-  const [cibil, setCibil] = useState<number | null>(a.cibil_score)
+  const [cibil, setCibil] = useState(a.cibil_score)
   const [emi, setEmi] = useState(a.existing_emi_monthly)
   const q = useDebounced(JSON.stringify({ ...a, loan_amount: amt, loan_term: term, cibil_score: cibil, existing_emi_monthly: emi }), 250)
   const [sim, setSim] = useState<Simulation | null>(null)
@@ -131,7 +131,7 @@ export function WhatIf({ r, onSave, busy }: { r: Result; onSave: (a: Result['app
         <div className="space-y-4">
           {slider('Loan amount', amt, setAmt, Math.round(a.loan_amount * 0.3 / 10000) * 10000, Math.round(a.loan_amount * 1.5 / 10000) * 10000, 10000, inr)}
           {slider('Term', term, setTerm, 2, 20, 1, (n) => `${n} years`)}
-          {a.cibil_score != null && slider('CIBIL score', cibil ?? 700, setCibil, 300, 900, 5, String)}
+          {slider('CIBIL score', cibil, setCibil, 300, 900, 5, String)}
           {slider('Existing EMIs', emi, setEmi, 0, Math.max(maxEmi, a.existing_emi_monthly), 500, inr)}
         </div>
         <div className="rounded-2xl bg-paper p-4" aria-live="polite">
@@ -273,7 +273,6 @@ export function ReviewPanel({ r, onDone }: { r: Result; onDone: (r: Result) => v
   return (
     <Card>
       <CardTitle sub="Patrata recommends; a person decides. Your reason is stored with your name and the time.">{r.decision === 'REFER' ? 'Credit manager review' : 'Override'}</CardTitle>
-      <AgentPanel id={r.id} onUse={(n, d) => { setNote(n.slice(0, 600)); if (d) setFinal(d) }} />
       <fieldset className="mb-3 flex gap-2">
         <legend className="sr-only">Final decision</legend>
         {(['APPROVE', 'DECLINE'] as const).map((d) => (
@@ -290,6 +289,40 @@ export function ReviewPanel({ r, onDone }: { r: Result; onDone: (r: Result) => v
       {err && <p className="mt-2 text-sm text-bad">{err}</p>}
       <Button className="mt-4 w-full" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Record final decision'}</Button>
     </Card>
+  )
+}
+
+/* ---------- Printable decision note (Download PDF uses the browser's Save as PDF) ---------- */
+export function PrintNote({ r }: { r: Result }) {
+  const a = r.application
+  const rows: [string, string][] = [
+    ['Age', `${a.age} years`], ['Dependents', String(a.no_of_dependents)], ['Annual income', inr(a.income_annum)],
+    ['Existing EMIs', `${inr(a.existing_emi_monthly)} a month`], ['Loan requested', `${inr(a.loan_amount)} over ${a.loan_term} years at ${a.annual_rate}% p.a.`],
+    ['Employment', `${r.repayment_risk?.employment || a.employment_type}, ${a.years_in_job} years`],
+    ['CIBIL score', String(a.cibil_score)], ['Assets', inr(a.residential_assets_value + a.commercial_assets_value + a.luxury_assets_value + a.bank_asset_value)],
+    ['Estimated new EMI', inr(r.emi_estimate)], ['EMI burden (FOIR)', `${(r.foir * 100).toFixed(1)}%`], ['Model approval likelihood', pct(r.approval_probability)],
+    ['Repayment risk (307,511 real loans)', r.repayment_risk ? `${(r.repayment_risk.probability * 100).toFixed(1)}% (${r.repayment_risk.band})` : 'n/a'],
+  ]
+  return (
+    <div className="print-only text-[12pt] text-black">
+      <div className="flex items-start justify-between border-b-2 border-black pb-3">
+        <div><p className="text-[18pt] font-bold">Loan pre-screening note</p><p>Patrata decision support. Application {r.id}. {when(r.created_at)}.</p></div>
+        <div className="stamp text-[18pt]">{STAMP[r.decision]}</div>
+      </div>
+      <p className="mt-4 text-[14pt] font-semibold">Recommendation: {WORD[r.decision]}</p>
+      <p>Status: {r.status}</p>
+      <table className="mt-4 w-full border-collapse">
+        <tbody>{rows.map(([k, v]) => <tr key={k}><td className="w-1/2 border-b border-gray-300 py-1.5">{k}</td><td className="border-b border-gray-300 py-1.5 font-semibold">{v}</td></tr>)}</tbody>
+      </table>
+      <p className="mt-4 font-semibold">Policy checks</p>
+      <ul className="list-disc pl-6">{r.rule_checks.map((c) => <li key={c.id}>{c.label}: {c.value} ({c.status === 'pass' ? 'pass' : c.status === 'refer' ? 'review' : 'fail'}; {c.threshold})</li>)}</ul>
+      <p className="mt-3 font-semibold">Reasons</p>
+      <ul className="list-disc pl-6">{r.reasons.map((x, i) => <li key={i}>{x}</li>)}</ul>
+      <p className="mt-3"><b>Suggested change:</b> {r.counterfactual.summary}</p>
+      {r.review && <p className="mt-3"><b>Credit manager:</b> {r.review.final_decision === 'APPROVE' ? 'Approved' : 'Declined'} by {r.review.reviewer}, {when(r.review.created_at)}. “{r.review.note}”</p>}
+      <div className="mt-12 grid grid-cols-2 gap-10"><p className="border-t border-black pt-1">Loan officer</p><p className="border-t border-black pt-1">Credit manager</p></div>
+      <p className="mt-6 text-[9pt]">Model version {r.model_version}. Decision support only; the lender remains responsible for the credit decision. No personal identifiers were collected.</p>
+    </div>
   )
 }
 
@@ -331,64 +364,5 @@ export function RiskCard({ r }: { r: Result }) {
         ))}
       </ul>
     </Card>
-  )
-}
-
-/* ---------- Review Agent (LLM + tools + loop; advises, never decides) ---------- */
-type AgentOut = {
-  steps: { thought: string; action: string; args: Record<string, unknown>; observation: Record<string, unknown> }[]
-  memo: { recommendation: string; summary: string; conditions: string[]; reasons: string[]; risks: string[] }
-  source: 'llm' | 'scripted'; notes: string[]
-}
-const TOOL_LABEL: Record<string, string> = { simulate: 'Re-scored the application', lookup_policy: 'Looked up policy', loan_cost: 'Worked out the loan cost' }
-const REC_LABEL: Record<string, [string, string]> = {
-  APPROVE: ['Approve', 'bg-ok-bg text-ok'], APPROVE_WITH_CONDITIONS: ['Approve with conditions', 'bg-ok-bg text-ok'],
-  DECLINE: ['Decline', 'bg-bad-bg text-bad'], NEEDS_MORE_INFO: ['Needs more information', 'bg-warn-bg text-warn'],
-}
-
-export function AgentPanel({ id, onUse }: { id: string; onUse: (note: string, decision: 'APPROVE' | 'DECLINE' | '') => void }) {
-  const [out, setOut] = useState<AgentOut | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
-  async function run() {
-    setBusy(true); setErr('')
-    try { setOut(await api<AgentOut>(`/applications/${id}/review-agent`, { method: 'POST' })) }
-    catch { setErr("The agent couldn't run just now. Try again.") } finally { setBusy(false) }
-  }
-  if (!out) return (
-    <div className="mb-4 rounded-xl border border-dashed border-field p-3">
-      <p className="text-sm">The <b>Review Agent</b> tests options with Patrata's tools and drafts a memo. You still decide.</p>
-      <Button kind="ghost" className="mt-2" onClick={run} disabled={busy}>{busy ? 'Agent is working…' : 'Ask the Review Agent'}</Button>
-      {err && <p className="mt-2 text-sm text-bad">{err}</p>}
-    </div>
-  )
-  const [label, tone] = REC_LABEL[out.memo.recommendation] || [out.memo.recommendation, 'bg-paper']
-  const fmt = (o: Record<string, unknown>) => Object.entries(o).filter(([k]) => k !== 'text').map(([k, v]) => `${k.replace(/_/g, ' ').replace(/\bemi\b/g, 'EMI').replace(/\bapr\b/g, 'APR')}: ${Array.isArray(v) ? v.join('; ') || 'none' : typeof v === 'object' && v ? Object.values(v).join(', ') : v}`).join('; ')
-  return (
-    <div className="mb-4 rounded-xl border border-line bg-paper/60 p-4">
-      <p className="mb-2 text-sm font-semibold">Review Agent <span className="font-normal text-muted">({out.source === 'llm' ? 'AI planned these steps' : 'scripted plan, AI unavailable'})</span></p>
-      <ol className="space-y-2">
-        {out.steps.map((s, i) => (
-          <li key={i} className="rounded-lg bg-white p-2.5 text-[13px]">
-            <p className="font-medium">{i + 1}. {TOOL_LABEL[s.action] || s.action}</p>
-            {s.thought && <p className="text-muted">{s.thought}</p>}
-            <p className="mt-1 text-ink">{fmt(s.observation as Record<string, unknown>)}</p>
-          </li>
-        ))}
-      </ol>
-      <div className="mt-3 rounded-lg bg-white p-3 text-sm">
-        <span className={cx('rounded-full px-2.5 py-0.5 text-[13px] font-semibold', tone)}>{label}</span>
-        <p className="mt-2">{out.memo.summary}</p>
-        {[['Conditions', out.memo.conditions], ['Reasons', out.memo.reasons], ['Risks', out.memo.risks]].map(([h, xs]) => (xs as string[]).length > 0 && (
-          <div key={h as string} className="mt-2"><p className="text-[12px] text-muted">{h as string}</p><ul className="list-disc pl-5">{(xs as string[]).map((x, i) => <li key={i}>{x}</li>)}</ul></div>
-        ))}
-        {out.notes.map((n, i) => <p key={i} className="mt-2 text-[12px] text-warn">{n}</p>)}
-      </div>
-      <Button kind="ghost" className="mt-3" onClick={() => onUse(
-        [out.memo.summary, ...out.memo.conditions.map((c) => `Condition: ${c}`)].join(' '),
-        out.memo.recommendation.startsWith('APPROVE') ? 'APPROVE' : out.memo.recommendation === 'DECLINE' ? 'DECLINE' : '')}>
-        Use as my reason
-      </Button>
-    </div>
   )
 }

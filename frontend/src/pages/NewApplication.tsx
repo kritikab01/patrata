@@ -10,7 +10,6 @@ import { Button, Card, CibilMeter, cx, DecisionPill, FoirMeter, Notice, PageHead
 type Form = Record<keyof Application, string>
 const toForm = (a: Partial<Application>): Form =>
   Object.fromEntries(FIELDS.map((f) => [f.id, a[f.id] == null ? '' : String(a[f.id])])) as Form
-const NTC_KEY = 'patrata-ntc'
 const num = (v: string) => (v.trim() === '' ? null : Number(v.replace(/,/g, '')))
 const val = (f: FieldDef, v: string) => (f.kind === 'select' ? v : num(v))
 const pretty = (f: FieldDef, raw: string) =>
@@ -25,8 +24,6 @@ export default function NewApplication() {
   const nav = useNavigate()
   const { state } = useLocation() as { state?: { prefill?: Application; submit?: boolean } }
   const [form, setForm] = useState<Form>(() => (state?.prefill ? toForm(state.prefill) : load()))
-  const [ntc, setNtc] = useState<boolean>(() => (state?.prefill ? Boolean(state.prefill.no_credit_history) : (() => { try { return localStorage.getItem(NTC_KEY) === '1' } catch { return false } })()))
-  useEffect(() => { try { localStorage.setItem(NTC_KEY, ntc ? '1' : '0') } catch { /* ignore */ } }, [ntc])
   const [step, setStep] = useState(0)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState('')
@@ -41,11 +38,11 @@ export default function NewApplication() {
     FIELDS.forEach((f) => { o[f.id] = f.kind === 'select' ? 0 : num(form[f.id]) })
     return o
   }, [form])
-  const complete = FIELDS.every((f) => (f.id === 'cibil_score' && ntc) || (values[f.id] !== null && !Number.isNaN(values[f.id])))
+  const complete = FIELDS.every((f) => values[f.id] !== null && !Number.isNaN(values[f.id]))
 
   // Live preview: same pipeline via /simulate (nothing saved), debounced while typing.
-  const payloadOf = (src: Form, n = ntc) => ({ ...Object.fromEntries(FIELDS.map((f) => [f.id, f.id === 'cibil_score' && n ? null : val(f, src[f.id])])), no_credit_history: n })
-  const debounced = useDebounced(complete ? JSON.stringify(payloadOf(form)) : '', 400)  // eslint-disable-line
+  const payloadOf = (src: Form) => Object.fromEntries(FIELDS.map((f) => [f.id, val(f, src[f.id])]))
+  const debounced = useDebounced(complete ? JSON.stringify(payloadOf(form)) : '', 400)
   const [sim, setSim] = useState<Simulation | null>(null)
   const [simErr, setSimErr] = useState('')
   useEffect(() => {
@@ -66,15 +63,15 @@ export default function NewApplication() {
 
   const stepValid = (i: number) => {
     const miss: Record<string, string> = {}
-    FIELDS.filter((f) => f.step === i).forEach((f) => { if (values[f.id] === null && !(f.id === 'cibil_score' && ntc)) miss[f.id] = 'Required' })
+    FIELDS.filter((f) => f.step === i).forEach((f) => { if (values[f.id] === null) miss[f.id] = 'Required' })
     setErrors((p) => ({ ...p, ...miss }))
     return !Object.keys(miss).length
   }
 
-  async function submit(data?: Form, ntcOverride?: boolean) {
+  async function submit(data?: Form) {
     if (busy) return                                   // blocks double clicks
     const src = data || form
-    const payload = payloadOf(src, ntcOverride ?? ntc)
+    const payload = payloadOf(src)
     if (!data) for (let i = 0; i < STEPS.length; i++) if (!stepValid(i)) { setStep(i); return }
     const key = JSON.stringify(payload)
     if (!last.current) { try { last.current = JSON.parse(localStorage.getItem('patrata-last') || 'null') } catch { /* ignore */ } }
@@ -99,7 +96,7 @@ export default function NewApplication() {
     } finally { clearTimeout(t); setSlow(false); setBusy(false) }
   }
 
-  useEffect(() => { if (state?.prefill && state.submit) submit(toForm(state.prefill), Boolean(state.prefill.no_credit_history)) }, [])   // "check with this change"
+  useEffect(() => { if (state?.prefill && state.submit) submit(toForm(state.prefill)) }, [])   // "check with this change"
 
   return (
     <>
@@ -110,7 +107,7 @@ export default function NewApplication() {
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
           {EXAMPLES.map((e) => (
             <button key={e.name} type="button" disabled={busy}
-              onClick={() => { const f = toForm(e.data); const n = Boolean(e.data.no_credit_history); setForm(f); setNtc(n); setErrors({}); setStep(2); submit(f, n) }}
+              onClick={() => { const f = toForm(e.data); setForm(f); setErrors({}); setStep(2); submit(f) }}
               className="min-h-12 shrink-0 rounded-2xl border border-field bg-white px-4 py-2 text-left hover:border-ink">
               <span className="block text-sm font-semibold">{e.name}</span>
               <span className="block text-[12px] text-muted">{e.note}</span>
@@ -147,19 +144,13 @@ export default function NewApplication() {
                 ) : (
                 <div className="relative flex items-center">
                   {f.kind === 'inr' && <span className="pointer-events-none absolute left-3 text-muted" aria-hidden="true">₹</span>}
-                  <input id={f.id} inputMode={f.kind === 'dec' ? 'decimal' : 'numeric'} autoComplete="off" disabled={f.id === 'cibil_score' && ntc}
+                  <input id={f.id} inputMode={f.kind === 'dec' ? 'decimal' : 'numeric'} autoComplete="off"
                     value={pretty(f, form[f.id])} onChange={(e) => set(f, e.target.value)}
                     aria-invalid={Boolean(errors[f.id])} aria-describedby={`${f.id}-h`}
                     className={cx('h-12 w-full rounded-xl border bg-white text-base outline-none focus:border-ink', f.kind === 'inr' ? 'pl-7 pr-3' : 'px-3', f.suffix && 'pr-16',
                       errors[f.id] ? 'border-bad bg-[#FFFBFA]' : 'border-field')} />
                   {f.suffix && <span className="pointer-events-none absolute right-3 text-sm text-muted" aria-hidden="true">{f.suffix}</span>}
                 </div>
-                )}
-                {f.id === 'cibil_score' && (
-                  <label className="mt-1 flex cursor-pointer items-start gap-2 rounded-xl bg-paper p-3 text-sm">
-                    <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#1E4FD8]" checked={ntc} onChange={(e) => { setNtc(e.target.checked); setErrors((p) => { const n = { ...p }; delete n.cibil_score; return n }) }} />
-                    <span><b className="font-semibold">No credit history yet</b> (first-time borrower). Patrata won't decline for this alone; a credit officer checks income instead, as RBI's January 2025 direction expects.</span>
-                  </label>
                 )}
                 <span id={`${f.id}-h`} className={cx('min-h-[18px] text-[12px]', errors[f.id] ? 'text-bad' : 'text-muted')}>
                   {errors[f.id] || (f.kind === 'inr' && values[f.id] ? `${inrShort(values[f.id]!)}${f.hint ? '. ' + f.hint : ''}` : f.hint) || ''}
@@ -202,7 +193,7 @@ export default function NewApplication() {
                 <div className="rounded-xl bg-paper p-3"><p className="text-muted">Model likelihood</p><p className="text-lg font-semibold">{pct(sim.approval_probability)}</p></div>
               </div>
               <FoirMeter foir={sim.foir} />
-              {!ntc && values.cibil_score != null && <CibilMeter score={values.cibil_score} />}
+              {values.cibil_score != null && <CibilMeter score={values.cibil_score} />}
               {(() => { const c = sim.rule_checks.find((x) => x.id === 'repayment'); return c && (
                 <div className="flex items-center justify-between rounded-xl bg-paper p-3 text-sm"><span className="text-muted">Repayment risk (307,511 real loans)</span>
                   <b className={c.status === 'pass' ? 'text-ok' : 'text-warn'}>{c.value}</b></div>) })()}

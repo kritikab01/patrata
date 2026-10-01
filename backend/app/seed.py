@@ -40,7 +40,6 @@ def _applicant(rng: random.Random) -> dict:
         "employment_type": rng.choices(["salaried", "self_employed", "government", "pensioner", "not_employed"],
                                        [55, 25, 12, 5, 3])[0],
         "years_in_job": round(min(age - 18, rng.choice([0.5, 1, 2, 3, 5, 8, 12])), 1),
-        "no_credit_history": rng.random() < 0.05,
     }
 
 

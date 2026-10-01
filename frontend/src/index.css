@@ -1,41 +1,31 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Figtree", "Noto Sans Devanagari", system-ui, -apple-system, sans-serif;
-  --font-display: "Archivo", "Figtree", system-ui, sans-serif;
-  --font-slip: "Courier Prime", "Courier New", monospace;
-  /* Vault: strict monochrome structure */
-  --color-ink: #0A0A0A;
-  --color-ink-2: #27272A;
-  --color-muted: #52525B;
-  --color-faint: #A1A1AA;
-  --color-paper: #F4F4F5;
-  --color-line: #E4E4E7;
-  --color-line-2: #EFEFF1;
-  --color-field: #D4D4D8;
-  /* UPI Blue: the one friendly accent, for actions */
-  --color-brand: #1E4FD8;
-  --color-brand-2: #1741B5;
-  --color-brand-bg: #EEF3FF;
-  --color-sky: #EEF3FF;
-  /* Status */
-  --color-ok: #047857;
-  --color-ok-bg: #E7F6EF;
-  --color-warn: #B45309;
-  --color-warn-ink: #B45309;
-  --color-warn-bg: #FEF3E2;
-  --color-warn-line: #F5C98B;
+  --font-sans: "IBM Plex Sans", "IBM Plex Sans Devanagari", system-ui, -apple-system, sans-serif;
+  --color-ink: #1E2A5A;
+  --color-ink-2: #0F1737;
+  --color-muted: #4A5468;
+  --color-faint: #8C96AB;
+  --color-paper: #F2F4F7;
+  --color-line: #D9DEE7;
+  --color-line-2: #EBEEF3;
+  --color-field: #C5CCD8;
+  --color-ok: #17663A;
+  --color-ok-bg: #E7F3EC;
+  --color-warn: #8A4B05;
+  --color-warn-ink: #9A5306;
+  --color-warn-bg: #FDF1E1;
+  --color-warn-line: #E7C38F;
   --color-bad: #B42318;
   --color-bad-bg: #FDECEA;
   --color-against: #C2410C;
+  --color-sky: #EEF2FB;
 }
 
 html, body, #root { min-height: 100%; }
-h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0.015em; }
-.font-slip { font-family: var(--font-slip); }
 body { background: var(--color-paper); color: var(--color-ink); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
 :focus-visible { outline: 2px solid #3B5BDB; outline-offset: 2px; }
-input[type=range], input[type=checkbox] { accent-color: var(--color-brand); }
+input[type=range] { accent-color: var(--color-ink); }
 
 .stamp { transform: rotate(-7deg); border: 4px double currentColor; border-radius: 6px; padding: 8px 14px; font-weight: 700; letter-spacing: .08em; line-height: 1; }
 .stamp-land { animation: land .5s cubic-bezier(.2, .8, .2, 1.2) both; }

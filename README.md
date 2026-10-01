@@ -19,7 +19,6 @@ would get it approved, and a human review workflow on top.
 | New application | Example applicants, 3-step form with Indian number formatting, live affordability preview (EMI, EMI-burden and CIBIL meters) |
 | Result | Decision stamp, status tracker, policy checks, SHAP drivers, suggested change, what-if simulator, AI explanation in English/Hindi with read-aloud, guarded Q&A with voice input, printable decision note (PDF) |
 | Review queue | Referred cases for a credit manager; final decision needs a written reason; overrides are labelled and audited |
-| Review Agent | AI agent (LLM + tools + loop): re-scores options, looks up policy, computes loan cost and APR, drafts a memo; guarded, and a person decides |
 | Batch screening | CSV template, upload or sample batch, score up to 500 rows, invalid rows reported, results download |
 | Assistant | EMI, affordability and eligibility calculators (computed in code), 30 cited knowledge topics, labelled general guidance for other loan questions, Hindi, voice in and out, injection and off-topic guardrails |
 | Model and governance | Accuracy vs baselines, feature importance, data audit, fairness check, thresholds, limitations, privacy |
@@ -33,7 +32,6 @@ backend/   FastAPI  ──▶ /api/...   (scoring, simulate, batch, reviews, sta
             ├─ model.py      XGBoost + TreeSHAP drivers + out-of-range guard
             ├─ policy.py     rules + probability → decision, counterfactual search
             ├─ explain.py    LLM explanations (Groq by default) with number verification + template fallback
-            ├─ agent.py      Review Agent: LLM plans tool calls, guarded loop, scripted fallback
             ├─ assistant.py  BM25 retrieval over knowledge.md + cited LLM answers
             ├─ store.py      SQLite audit log, reviews, dashboard statistics
             └─ seed.py       sample applications for the demo (marked "Sample")
@@ -85,7 +83,7 @@ source .venv/bin/activate
 uv pip install -r requirements-dev.txt
 cp .env.example .env                  # paste your Groq key into .env
 
-pytest -q                             # 61 tests, each mapped to an evaluation question
+pytest -q                             # 50 tests, each mapped to an evaluation question
 uvicorn app.main:app --reload         # app at http://127.0.0.1:8000, API docs at /docs
 ```
 
@@ -149,7 +147,6 @@ It opens full-screen with its own icon, like any installed app.
 ## Documentation
 
 - [`docs/DATA_AND_MODEL.md`](docs/DATA_AND_MODEL.md): dataset, features, training pipeline, retraining, swapping data
-- [`docs/DESIGN.md`](docs/DESIGN.md): design system (Vault structure, UPI Blue accent, Receipt slip)
 
 ## Evaluation map
 

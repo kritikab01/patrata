@@ -15,8 +15,7 @@ class ApplicationIn(BaseModel):
     income_annum: float = Field(..., gt=0, le=1_000_000_000, description="Annual income in ₹")
     loan_amount: float = Field(..., gt=0, le=1_000_000_000, description="Requested amount in ₹")
     loan_term: int = Field(..., ge=1, le=30, description="Term in years")
-    cibil_score: Optional[int] = Field(None, ge=300, le=900)
-    no_credit_history: bool = Field(False, description="First-time borrower with no CIBIL score")
+    cibil_score: int = Field(..., ge=300, le=900)
     residential_assets_value: float = Field(0, ge=0)
     commercial_assets_value: float = Field(0, ge=0)
     luxury_assets_value: float = Field(0, ge=0)
@@ -28,10 +27,6 @@ class ApplicationIn(BaseModel):
 
     @model_validator(mode="after")
     def cross_checks(self):
-        if self.no_credit_history:
-            self.cibil_score = None
-        elif self.cibil_score is None:
-            raise ValueError("Enter the CIBIL score, or choose 'No credit history yet'.")
         if self.existing_emi_monthly >= self.income_annum / 12:
             raise ValueError("Existing EMIs are equal to or higher than monthly income. Check both figures.")
         if self.years_in_job > max(0, self.age - 15):
@@ -68,7 +63,7 @@ class Counterfactual(BaseModel):
 class DecisionOut(BaseModel):
     id: str
     decision: Decision
-    approval_probability: Optional[float]
+    approval_probability: float
     reasons: list[str]
     rule_checks: list[RuleCheck]
     drivers: list[Driver]

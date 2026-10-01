@@ -12,7 +12,6 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
-from . import agent as AG
 from . import assistant as A
 from . import config as C
 from . import explain as X
@@ -196,18 +195,6 @@ def review(app_id: str, body: ReviewIn):
     _get_or_404(app_id)
     store.save_review(app_id, body.final_decision, body.note.strip(), body.reviewer.strip())
     return store.get(app_id)
-
-
-@api.get("/applications/{app_id}/kfs")
-def kfs(app_id: str):
-    """Key Fact Statement figures for the requested loan: EMI, total interest, processing fee and APR."""
-    return AG.tool_loan_cost(_get_or_404(app_id), {})
-
-
-@api.post("/applications/{app_id}/review-agent")
-def review_agent(app_id: str):
-    """AI agent that tests options with tools and drafts a memo. It advises; a person decides."""
-    return AG.review(_get_or_404(app_id))
 
 
 @api.get("/reviews/queue", response_model=list[DecisionOut])

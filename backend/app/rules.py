@@ -49,21 +49,14 @@ def run_rules(app: ApplicationIn, amount: float | None = None, term: int | None 
     ))
 
     s = app.cibil_score
-    if s is None:
-        checks.append(RuleCheck(
-            id="cibil", label="CIBIL score", status="refer", value="No history",
-            threshold="first-time borrower: assess income instead",
-            detail=("No credit history yet. Under RBI's January 2025 direction, first-time borrowers shouldn't be "
-                    "rejected only for this, so a credit officer should check income stability and bank statements.")))
-    elif s < C.CIBIL_HARD_FLOOR:
+    if s < C.CIBIL_HARD_FLOOR:
         st, d = "fail", f"Below the policy floor of {C.CIBIL_HARD_FLOOR}."
     elif s < C.CIBIL_SOFT_FLOOR:
         st, d = "refer", f"Between {C.CIBIL_HARD_FLOOR} and {C.CIBIL_SOFT_FLOOR - 1}, so a credit officer should review."
     else:
         st, d = "pass", f"At or above {C.CIBIL_SOFT_FLOOR}."
-    if s is not None:
-        checks.append(RuleCheck(id="cibil", label="CIBIL score", status=st, value=str(s),
-                                threshold=f"{C.CIBIL_SOFT_FLOOR}+ clear, {C.CIBIL_HARD_FLOOR} minimum", detail=d))
+    checks.append(RuleCheck(id="cibil", label="CIBIL score", status=st, value=str(s),
+                            threshold=f"{C.CIBIL_SOFT_FLOOR}+ clear, {C.CIBIL_HARD_FLOOR} minimum", detail=d))
 
     new_emi, ratio = foir(app, amount, term)
     pct = round(ratio * 100, 1)
