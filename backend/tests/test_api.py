@@ -16,10 +16,10 @@ def client():
 
 
 def base(**kw):
-    d = dict(request_id=uuid.uuid4().hex, age=32, no_of_dependents=1, income_annum=1_800_000,
-             loan_amount=4_500_000, loan_term=10, cibil_score=780, residential_assets_value=3_000_000,
+    d = dict(request_id=uuid.uuid4().hex, age=38, no_of_dependents=1, income_annum=1_800_000,
+             loan_amount=4_500_000, loan_term=15, cibil_score=780, residential_assets_value=3_000_000,
              commercial_assets_value=0, luxury_assets_value=1_500_000, bank_asset_value=800_000,
-             existing_emi_monthly=0, annual_rate=12.0)
+             existing_emi_monthly=0, annual_rate=12.0, employment_type="salaried", years_in_job=8)
     d.update(kw)
     return d
 
@@ -193,7 +193,7 @@ def test_unknown_api_path_is_404_not_html(client):
 def test_simulate_saves_nothing(client):
     before = len(client.get("/api/applications?limit=500").json())
     body = base(); body.pop("request_id")
-    r = client.post("/api/simulate", json={**body, "existing_emi_monthly": 30000}).json()
+    r = client.post("/api/simulate", json={**body, "existing_emi_monthly": 40000}).json()
     assert r["decision"] == "REFER" and 0.6 < r["foir"] < 0.65
     assert len(client.get("/api/applications?limit=500").json()) == before
 
@@ -206,7 +206,7 @@ def test_batch_scores_and_reports_bad_rows(client):
 
 
 def test_review_workflow_and_status(client):                   # C-Q2 / C-Q3
-    a = client.post("/api/score", json=base(existing_emi_monthly=30000)).json()
+    a = client.post("/api/score", json=base(existing_emi_monthly=40000)).json()
     assert a["status"] == "Awaiting review"
     assert any(x["id"] == a["id"] for x in client.get("/api/reviews/queue").json())
     bad = client.post(f"/api/applications/{a['id']}/review", json={"final_decision": "APPROVE", "note": "ok"})
@@ -259,3 +259,193 @@ def test_seeding_creates_sample_data(tmp_path, monkeypatch):
     n = seed.seed(n=30, force=True)
     rows = St.recent(100)
     assert n >= 25 and all(r["sample"] for r in rows) and {r["decision"] for r in rows} >= {"APPROVE", "REFER"}
+
+
+# ---------------- repayment-risk model (307,511 real loans) ----------------
+def test_risk_is_attached_and_explained(client):
+    r = client.post("/api/score", json=base()).json()
+    rr = r["repayment_risk"]
+    assert 0 < rr["probability"] < 1 and rr["band"] in ("low", "medium", "high") and rr["drivers"]
+    assert any(c["id"] == "repayment" for c in r["rule_checks"])
+
+
+def test_young_new_job_is_referred_for_repayment_risk(client):
+    r = client.post("/api/score", json=base(age=24, years_in_job=0.5, residential_assets_value=0,
+                                            luxury_assets_value=0, loan_term=10)).json()
+    assert r["repayment_risk"]["band"] == "high"
+    assert r["decision"] == "REFER" and any(c["id"] == "repayment" and c["status"] == "refer" for c in r["rule_checks"])
+
+
+def test_stable_government_job_lowers_risk(client):
+    young = client.post("/api/simulate", json={**base(age=24, years_in_job=0.5), "request_id": "s" * 8}).json()
+    stable = client.post("/api/simulate", json={**base(age=45, years_in_job=15, employment_type="government"), "request_id": "s" * 8}).json()
+    rk = lambda r: next(c for c in r["rule_checks"] if c["id"] == "repayment")["value"]
+    assert float(rk(stable).rstrip("%")) < float(rk(young).rstrip("%"))
+
+
+def test_not_employed_needs_income_verification(client):
+    r = client.post("/api/score", json=base(employment_type="not_employed", years_in_job=0)).json()
+    assert r["decision"] != "APPROVE" and any(c["id"] == "employment" for c in r["rule_checks"])
+
+
+def test_years_in_job_cannot_exceed_working_life(client):
+    r = client.post("/api/score", json=base(age=25, years_in_job=20))
+    assert r.status_code == 422 and "Years in the current job" in r.json()["errors"][0]["message"]
+
+
+# ---------------- assistant v2: calculators, general guidance, guardrails ----------------
+def test_emi_calculator_is_exact():
+    from app import assistant as A
+    r = A.answer("What is the EMI for 10 lakh at 11% for 5 years?")
+    assert r["kind"] == "calculator" and "₹21,742" in r["answer"]
+
+
+def test_affordability_and_eligibility_parse_indian_amounts():
+    from app import tools as T
+    assert T.parse("I earn 6 LPA, will I get 20 lakh loan for 10 years, my CIBIL score is 640") == \
+        {"years": 10.0, "cibil": 640, "monthly_income": 50000.0, "loan_amount": 2000000.0}
+    a = T.run("How much loan can I get with 60k salary per month and 10000 existing EMI?")
+    assert a["tool"] == "Affordability calculator" and a["existing_emis"] == "₹10,000"
+
+
+def test_hindi_emi_question():
+    from app import assistant as A
+    r = A.answer("मुझे 10 लाख का लोन 5 साल के लिए चाहिए, EMI कितनी होगी?", lang="hi")
+    assert r["kind"] == "calculator" and "₹10,00,000" in r["answer"]
+
+
+def test_calculator_asks_for_missing_numbers():
+    from app import assistant as A
+    r = A.answer("what is my emi")
+    assert r["kind"] == "calculator" and "loan amount" in r["answer"]
+
+
+def test_general_question_answered_when_ai_on(monkeypatch):
+    from app import assistant as A
+    monkeypatch.setattr(A.C, "LLM_API_KEY", "fake")
+    r = A.answer("Should I take a gold loan or a personal loan?", llm=lambda s, p: "General guidance: a gold loan is usually cheaper but needs gold as security.")
+    assert r["kind"] == "general" and r["source"] == "llm"
+
+
+def test_llm_cannot_change_calculated_numbers(monkeypatch):
+    from app import assistant as A
+    monkeypatch.setattr(A.C, "LLM_API_KEY", "fake")
+    r = A.answer("What is the EMI for 10 lakh at 11% for 5 years?", llm=lambda s, p: "Your EMI will be ₹25,000 a month.")
+    assert r["kind"] == "calculator" and "₹21,742" in r["answer"] and "25,000" not in r["answer"]
+
+
+def test_off_topic_never_reaches_the_llm(monkeypatch):
+    from app import assistant as A
+    monkeypatch.setattr(A.C, "LLM_API_KEY", "fake")
+    def boom(s, p): raise AssertionError("LLM should not be called")
+    assert A.answer("Who won the cricket match yesterday?", llm=boom)["kind"] == "guard"
+
+
+def test_llm_out_of_scope_reply_is_respected(monkeypatch):
+    from app import assistant as A
+    monkeypatch.setattr(A.C, "LLM_API_KEY", "fake")
+    assert A.answer("What interest do banks pay on a movie?", llm=lambda s, p: "OUT_OF_SCOPE")["kind"] == "guard"
+
+
+def test_unrelated_question_does_not_inherit_earlier_topic():
+    from app import assistant as A
+    hist = [{"role": "user", "content": "How can I improve my CIBIL score?"}, {"role": "assistant", "content": "Pay on time."}]
+    assert A.answer("Who won the cricket match?", hist)["kind"] == "guard"
+    assert A.answer("Why is that?", hist)["kind"] == "grounded"     # a real follow-up still uses context
+
+
+# ---------------- Review Agent (LLM + tools + loop, human decides) ----------------
+def _referred(client):
+    return client.post("/api/score", json=base(existing_emi_monthly=40000)).json()
+
+
+def test_agent_scripted_review_without_ai(client):
+    r = _referred(client)
+    out = client.post(f"/api/applications/{r['id']}/review-agent").json()
+    assert out["source"] == "scripted" and out["steps"][0]["action"] == "simulate"
+    assert out["memo"]["recommendation"] == "APPROVE_WITH_CONDITIONS" and out["memo"]["conditions"]
+
+
+def _seq(*replies):
+    it = iter(replies)
+    return lambda s, p: next(it)
+
+
+def test_agent_runs_tools_chosen_by_the_llm(client, monkeypatch):
+    from app import agent as AG
+    monkeypatch.setattr(AG.X.C, "LLM_API_KEY", "fake")
+    r = _referred(client)
+    sim = AG.tool_simulate(r, {"loan_amount": 3150000, "loan_term": 20})
+    llm = _seq(json.dumps({"thought": "try smaller", "action": "simulate", "args": {"loan_amount": 3150000, "loan_term": 20}}),
+               json.dumps({"thought": "cost", "action": "loan_cost", "args": {"loan_amount": 3150000, "loan_term": 20}}),
+               json.dumps({"thought": "done", "final": {"recommendation": "APPROVE_WITH_CONDITIONS",
+                           "summary": f"Approvable with EMI {sim['new_emi']}.", "conditions": ["Reduce the loan"], "reasons": [], "risks": []}}))
+    out = AG.review(r, llm=llm)
+    assert out["source"] == "llm" and [s["action"] for s in out["steps"]] == ["simulate", "loan_cost"]
+
+
+def test_agent_invented_number_falls_back(client, monkeypatch):
+    from app import agent as AG
+    monkeypatch.setattr(AG.X.C, "LLM_API_KEY", "fake")
+    r = _referred(client)
+    llm = _seq(json.dumps({"action": "simulate", "args": {"loan_amount": 3150000}}),
+               json.dumps({"final": {"recommendation": "APPROVE", "summary": "EMI will be ₹11,111."}}))
+    out = AG.review(r, llm=llm)
+    assert out["source"] == "scripted" and any("number" in n for n in out["notes"])
+
+
+def test_agent_must_test_before_concluding_and_unknown_tools_are_blocked(client, monkeypatch):
+    from app import agent as AG
+    monkeypatch.setattr(AG.X.C, "LLM_API_KEY", "fake")
+    r = _referred(client)
+    assert AG.review(r, llm=_seq(json.dumps({"final": {"recommendation": "APPROVE"}})))["source"] == "scripted"
+    assert AG.review(r, llm=_seq(json.dumps({"action": "send_money", "args": {}})))["source"] == "scripted"
+
+
+def test_policy_guard_blocks_plain_approval_after_hard_fail(client, monkeypatch):
+    from app import agent as AG
+    monkeypatch.setattr(AG.X.C, "LLM_API_KEY", "fake")
+    r = client.post("/api/score", json=base(cibil_score=520)).json()
+    llm = _seq(json.dumps({"action": "simulate", "args": {"loan_term": 5}}),
+               json.dumps({"final": {"recommendation": "APPROVE", "summary": "Looks fine."}}))
+    out = AG.review(r, llm=llm)
+    assert out["memo"]["recommendation"] != "APPROVE" and out["notes"]
+
+
+def test_loan_cost_apr_includes_fee():
+    from app import agent as AG
+    c = AG.tool_loan_cost({"application": {"loan_amount": 1000000, "loan_term": 5, "annual_rate": 11}}, {})
+    assert c["monthly_emi"] == "₹21,742" and 11.3 < float(c["apr_including_fee"].rstrip("%")) < 11.6
+
+
+# ---------------- New to credit (RBI, January 2025) ----------------
+def test_first_time_borrower_is_referred_not_declined(client):
+    r = client.post("/api/score", json=base(cibil_score=None, no_credit_history=True)).json()
+    assert r["decision"] == "REFER" and r["approval_probability"] is None and "new_to_credit" in r["flags"]
+    cib = next(c for c in r["rule_checks"] if c["id"] == "cibil")
+    assert cib["value"] == "No history" and "RBI" in cib["detail"]
+    assert 0 < r["repayment_risk"]["probability"] < 1          # the risk model still works without CIBIL
+
+
+def test_missing_cibil_without_flag_is_rejected(client):
+    r = client.post("/api/score", json=base(cibil_score=None))
+    assert r.status_code == 422 and "No credit history" in r.json()["errors"][0]["message"]
+
+
+def test_first_time_borrower_still_declined_on_hard_rules(client):
+    r = client.post("/api/score", json=base(cibil_score=None, no_credit_history=True, existing_emi_monthly=60000)).json()
+    assert r["decision"] == "DECLINE"
+
+
+def test_first_time_borrower_explanation_and_agent_work(client):
+    r = client.post("/api/score", json=base(cibil_score=None, no_credit_history=True)).json()
+    e = client.post(f"/api/applications/{r['id']}/explain").json()
+    assert "not scored" in e["summary"]
+    out = client.post(f"/api/applications/{r['id']}/review-agent").json()
+    assert out["memo"]["recommendation"] == "NEEDS_MORE_INFO"
+
+
+def test_kfs_shows_apr_above_headline_rate(client):
+    r = client.post("/api/score", json=base()).json()
+    k = client.get(f"/api/applications/{r['id']}/kfs").json()
+    assert k["monthly_emi"] == "₹54,008" and float(k["apr_including_fee"].rstrip("%")) > 12.0

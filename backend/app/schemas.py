@@ -15,18 +15,27 @@ class ApplicationIn(BaseModel):
     income_annum: float = Field(..., gt=0, le=1_000_000_000, description="Annual income in ₹")
     loan_amount: float = Field(..., gt=0, le=1_000_000_000, description="Requested amount in ₹")
     loan_term: int = Field(..., ge=1, le=30, description="Term in years")
-    cibil_score: int = Field(..., ge=300, le=900)
+    cibil_score: Optional[int] = Field(None, ge=300, le=900)
+    no_credit_history: bool = Field(False, description="First-time borrower with no CIBIL score")
     residential_assets_value: float = Field(0, ge=0)
     commercial_assets_value: float = Field(0, ge=0)
     luxury_assets_value: float = Field(0, ge=0)
     bank_asset_value: float = Field(0, ge=0)
     existing_emi_monthly: float = Field(0, ge=0, description="Current EMIs per month in ₹")
     annual_rate: float = Field(12.0, ge=1, le=36, description="Assumed interest rate % p.a.")
+    employment_type: Literal["salaried", "self_employed", "government", "pensioner", "not_employed"] = "salaried"
+    years_in_job: float = Field(3.0, ge=0, le=50, description="Years in current job or business")
 
     @model_validator(mode="after")
     def cross_checks(self):
+        if self.no_credit_history:
+            self.cibil_score = None
+        elif self.cibil_score is None:
+            raise ValueError("Enter the CIBIL score, or choose 'No credit history yet'.")
         if self.existing_emi_monthly >= self.income_annum / 12:
             raise ValueError("Existing EMIs are equal to or higher than monthly income. Check both figures.")
+        if self.years_in_job > max(0, self.age - 15):
+            raise ValueError("Years in the current job can't be more than the applicant's age minus 15.")
         if self.age + self.loan_term > 75:
             raise ValueError("Age plus loan term goes past 75. Shorten the term or check the age.")
         return self
@@ -59,7 +68,7 @@ class Counterfactual(BaseModel):
 class DecisionOut(BaseModel):
     id: str
     decision: Decision
-    approval_probability: float
+    approval_probability: Optional[float]
     reasons: list[str]
     rule_checks: list[RuleCheck]
     drivers: list[Driver]
@@ -72,6 +81,7 @@ class DecisionOut(BaseModel):
     created_at: str
     application: dict = {}
     sample: bool = False
+    repayment_risk: dict = {}
     review: Optional[dict] = None
     status: str = ""
 

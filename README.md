@@ -1,14 +1,3 @@
----
-title: Patrata
-emoji: 🏦
-colorFrom: indigo
-colorTo: gray
-sdk: docker
-app_port: 7860
-pinned: false
-short_description: Explainable loan pre-screening for loan officers
----
-
 # Patrata (पात्रता) — explainable loan pre-screening platform
 
 ![CI](../../actions/workflows/ci.yml/badge.svg)
@@ -25,12 +14,14 @@ would get it approved, and a human review workflow on top.
 
 | Area | Features |
 |---|---|
+| Two models | Approval model (4,269 Indian applications) plus repayment-risk model (307,499 real Home Credit loans) |
 | Dashboard | KPIs, decisions per day, why cases need attention, approval by CIBIL band, recent cases |
 | New application | Example applicants, 3-step form with Indian number formatting, live affordability preview (EMI, EMI-burden and CIBIL meters) |
 | Result | Decision stamp, status tracker, policy checks, SHAP drivers, suggested change, what-if simulator, AI explanation in English/Hindi with read-aloud, guarded Q&A with voice input, printable decision note (PDF) |
 | Review queue | Referred cases for a credit manager; final decision needs a written reason; overrides are labelled and audited |
+| Review Agent | AI agent (LLM + tools + loop): re-scores options, looks up policy, computes loan cost and APR, drafts a memo; guarded, and a person decides |
 | Batch screening | CSV template, upload or sample batch, score up to 500 rows, invalid rows reported, results download |
-| Assistant | Multi-turn chat grounded in Patrata's policy notes (retrieval-augmented), cited sources, Hindi, voice in and out, injection and off-topic guardrails |
+| Assistant | EMI, affordability and eligibility calculators (computed in code), 30 cited knowledge topics, labelled general guidance for other loan questions, Hindi, voice in and out, injection and off-topic guardrails |
 | Model and governance | Accuracy vs baselines, feature importance, data audit, fairness check, thresholds, limitations, privacy |
 
 ## Architecture
@@ -42,6 +33,7 @@ backend/   FastAPI  ──▶ /api/...   (scoring, simulate, batch, reviews, sta
             ├─ model.py      XGBoost + TreeSHAP drivers + out-of-range guard
             ├─ policy.py     rules + probability → decision, counterfactual search
             ├─ explain.py    LLM explanations (Groq by default) with number verification + template fallback
+            ├─ agent.py      Review Agent: LLM plans tool calls, guarded loop, scripted fallback
             ├─ assistant.py  BM25 retrieval over knowledge.md + cited LLM answers
             ├─ store.py      SQLite audit log, reviews, dashboard statistics
             └─ seed.py       sample applications for the demo (marked "Sample")
@@ -54,7 +46,7 @@ Dockerfile  one container serves the web app and the API on Hugging Face Spaces
 Officer fills the form
  → Validation        reject impossible values, warn on implausible ones
  → Policy rules      age band, CIBIL floor, FOIR (EMI burden) cap   ← deterministic
- → ML model          XGBoost with monotone constraints → P(approve)
+ → ML models         XGBoost approval model + repayment-risk model (307k real loans)
  → Range guard       inputs outside the training data → human review
  → Decision policy   rules + probability → Approve / Refer / Decline
  → Counterfactual    smallest amount/term change that would clear all checks
@@ -93,7 +85,7 @@ source .venv/bin/activate
 uv pip install -r requirements-dev.txt
 cp .env.example .env                  # paste your Groq key into .env
 
-pytest -q                             # 35 tests, each mapped to an evaluation question
+pytest -q                             # 61 tests, each mapped to an evaluation question
 uvicorn app.main:app --reload         # app at http://127.0.0.1:8000, API docs at /docs
 ```
 
@@ -137,18 +129,14 @@ Without a key the app still works and uses template explanations.
 
 ## Deploy (automatic, free)
 
-Code lives on GitHub; the live app runs on Hugging Face Spaces. Every push to `main` runs the tests
-(`.github/workflows/ci.yml`) and, if they pass, redeploys the Space (`.github/workflows/deploy-hf.yml`).
+The live app runs on **Render** (free web service, Docker). Every push to `main` runs the tests on GitHub
+(`.github/workflows/ci.yml`) and Render redeploys automatically.
 
-One-time setup:
-1. Create a Hugging Face Space: SDK **Docker**, template **Blank**, hardware **CPU basic (free)**, **Public**.
-2. In the Space's **Settings → Variables and secrets**, add the secret `GROQ_API_KEY`.
-3. Create a Hugging Face access token with **Write** permission.
-4. In the GitHub repo, add the secret `HF_TOKEN` (that token) and the variable `HF_SPACE` (`username/space-name`).
-5. Push to `main`. The app appears at `https://<username>-<space-name>.hf.space`; open `/api/llm-check` once to confirm the AI works.
+Render settings: runtime **Docker**, instance **Free**, health check `/api/health`, environment variables
+`GROQ_API_KEY` (free at console.groq.com) and `PORT=7860`.
 
-A free Space sleeps after 48 hours with no visitors and wakes on the next visit. The database lives
-in `/tmp`, so history resets on restart and the sample data is regenerated.
+The free instance sleeps after 15 minutes without visitors, and the first visit then takes about a minute.
+Its disk is temporary, so history resets on restart and the sample data is regenerated in the background.
 
 ## Install it on a phone
 
@@ -161,6 +149,7 @@ It opens full-screen with its own icon, like any installed app.
 ## Documentation
 
 - [`docs/DATA_AND_MODEL.md`](docs/DATA_AND_MODEL.md): dataset, features, training pipeline, retraining, swapping data
+- [`docs/DESIGN.md`](docs/DESIGN.md): design system (Vault structure, UPI Blue accent, Receipt slip)
 
 ## Evaluation map
 

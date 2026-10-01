@@ -37,7 +37,8 @@ def foir(app: ApplicationIn, amount: float | None = None, term: int | None = Non
     return new_emi, (app.existing_emi_monthly + new_emi) / monthly_income
 
 
-def run_rules(app: ApplicationIn, amount: float | None = None, term: int | None = None) -> list[RuleCheck]:
+def run_rules(app: ApplicationIn, amount: float | None = None, term: int | None = None,
+              risk_p: float | None = None) -> list[RuleCheck]:
     checks: list[RuleCheck] = []
 
     ok_age = C.AGE_MIN <= app.age <= C.AGE_MAX
@@ -48,14 +49,21 @@ def run_rules(app: ApplicationIn, amount: float | None = None, term: int | None 
     ))
 
     s = app.cibil_score
-    if s < C.CIBIL_HARD_FLOOR:
+    if s is None:
+        checks.append(RuleCheck(
+            id="cibil", label="CIBIL score", status="refer", value="No history",
+            threshold="first-time borrower: assess income instead",
+            detail=("No credit history yet. Under RBI's January 2025 direction, first-time borrowers shouldn't be "
+                    "rejected only for this, so a credit officer should check income stability and bank statements.")))
+    elif s < C.CIBIL_HARD_FLOOR:
         st, d = "fail", f"Below the policy floor of {C.CIBIL_HARD_FLOOR}."
     elif s < C.CIBIL_SOFT_FLOOR:
         st, d = "refer", f"Between {C.CIBIL_HARD_FLOOR} and {C.CIBIL_SOFT_FLOOR - 1}, so a credit officer should review."
     else:
         st, d = "pass", f"At or above {C.CIBIL_SOFT_FLOOR}."
-    checks.append(RuleCheck(id="cibil", label="CIBIL score", status=st, value=str(s),
-                            threshold=f"{C.CIBIL_SOFT_FLOOR}+ clear, {C.CIBIL_HARD_FLOOR} minimum", detail=d))
+    if s is not None:
+        checks.append(RuleCheck(id="cibil", label="CIBIL score", status=st, value=str(s),
+                                threshold=f"{C.CIBIL_SOFT_FLOOR}+ clear, {C.CIBIL_HARD_FLOOR} minimum", detail=d))
 
     new_emi, ratio = foir(app, amount, term)
     pct = round(ratio * 100, 1)
@@ -68,6 +76,24 @@ def run_rules(app: ApplicationIn, amount: float | None = None, term: int | None 
     checks.append(RuleCheck(id="foir", label="EMI burden (FOIR)", status=st, value=f"{pct}%",
                             threshold=f"up to {int(C.FOIR_SOFT_CAP*100)}% clear, {int(C.FOIR_HARD_CAP*100)}% maximum",
                             detail=d + f" New EMI estimated at {inr(new_emi)} per month at {app.annual_rate}% p.a."))
+
+    if app.employment_type == "not_employed":
+        checks.append(RuleCheck(id="employment", label="Source of income", status="refer", value="Not employed",
+                                threshold="regular salary, business or pension income",
+                                detail="No regular employment, so income must be verified by a credit officer."))
+
+    from . import risk   # local import: risk uses rules.emi
+    p = risk_p if risk_p is not None else float(
+        risk.probability(app, [{"loan_amount": amount or app.loan_amount, "loan_term": term or app.loan_term}])[0])
+    b = risk.band(p)
+    _, meta = risk.load()
+    rel = p / meta["base_default_rate"]
+    checks.append(RuleCheck(
+        id="repayment", label="Repayment risk", status="refer" if b == "high" else "pass",
+        value=f"{p * 100:.1f}%", threshold=f"below {meta['bands']['high_from'] * 100:.1f}% (1.5x the average)",
+        detail=(f"Borrowers like this had payment difficulties {rel:.1f} times as often as average "
+                f"in 307,511 real loans." if b == "high" else
+                f"In line with or below the average default rate of {meta['base_default_rate'] * 100:.1f}% in 307,511 real loans.")))
     return checks
 
 

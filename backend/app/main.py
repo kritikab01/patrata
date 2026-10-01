@@ -12,10 +12,11 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
+from . import agent as AG
 from . import assistant as A
 from . import config as C
 from . import explain as X
-from . import model, policy, seed, store
+from . import model, policy, risk, seed, store
 from .rules import input_warnings
 from .schemas import (ApplicationIn, AskIn, AskOut, AssistantIn, BatchIn, DecisionOut, Explanation,
                       ReviewIn, SimulateIn)
@@ -25,7 +26,11 @@ from .schemas import (ApplicationIn, AskIn, AskOut, AssistantIn, BatchIn, Decisi
 async def lifespan(_app):
     store.init()
     model.load()
-    seed.seed()
+    risk.load()
+    # Sample data is generated in the background so the server answers immediately,
+    # which matters on small free hosting where startup time is limited.
+    import threading
+    threading.Thread(target=seed.seed, daemon=True).start()
     yield
 
 
@@ -123,6 +128,9 @@ def model_card():
                 "role": "explanations and assistant answers only",
                 "data_sent": "derived figures and rule results; no names, IDs or contact details"},
         "assistant_retrieval_eval": A.retrieval_eval(),
+        "risk_model": {k: risk.load()[1][k] for k in ("model_version", "data_source", "rows", "base_default_rate",
+                                                      "bands", "metrics", "fairness_mean_predicted_risk",
+                                                      "global_importance", "labels", "excluded_on_purpose")},
     }
 
 
@@ -188,6 +196,18 @@ def review(app_id: str, body: ReviewIn):
     _get_or_404(app_id)
     store.save_review(app_id, body.final_decision, body.note.strip(), body.reviewer.strip())
     return store.get(app_id)
+
+
+@api.get("/applications/{app_id}/kfs")
+def kfs(app_id: str):
+    """Key Fact Statement figures for the requested loan: EMI, total interest, processing fee and APR."""
+    return AG.tool_loan_cost(_get_or_404(app_id), {})
+
+
+@api.post("/applications/{app_id}/review-agent")
+def review_agent(app_id: str):
+    """AI agent that tests options with tools and drafts a memo. It advises; a person decides."""
+    return AG.review(_get_or_404(app_id))
 
 
 @api.get("/reviews/queue", response_model=list[DecisionOut])

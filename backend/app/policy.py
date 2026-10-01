@@ -1,13 +1,15 @@
 """Combines policy rules and the model into one decision. The LLM is never called
 here: the decision is fully deterministic and reproducible."""
 from . import config as C
-from . import model
+from . import model, risk
 from .rules import foir, inr, run_rules
 from .schemas import ApplicationIn, Counterfactual, RuleCheck
 
 
-def pct(p: float) -> str:
+def pct(p: float | None) -> str:
     """Never display 100% or 0%: a model is never certain."""
+    if p is None:
+        return "not scored (no credit history)"
     if p >= 0.9995:
         return ">99.9%"
     if p <= 0.0005:
@@ -15,8 +17,12 @@ def pct(p: float) -> str:
     return f"{p * 100:.1f}%"
 
 
-def decide(p: float, checks: list[RuleCheck], ood: list[str]) -> tuple[str, list[str], list[str]]:
+def decide(p: float | None, checks: list[RuleCheck], ood: list[str]) -> tuple[str, list[str], list[str]]:
     hard = [c for c in checks if c.status == "fail"]
+    if p is None:   # first-time borrower: no CIBIL, so the approval model isn't used; a human assesses income
+        if hard:
+            return "DECLINE", [f"{c.label}: {c.detail}" for c in hard], ["new_to_credit"]
+        return "REFER", [f"{c.label}: {c.detail}" for c in checks if c.status != "pass"], ["new_to_credit"]
     soft = [c for c in checks if c.status == "refer"]
     reasons, flags = [], []
 
@@ -58,6 +64,13 @@ def counterfactual(app: ApplicationIn, decision: str, checks: list[RuleCheck]) -
     if decision == "APPROVE":
         return Counterfactual(possible=True, loan_amount=app.loan_amount, loan_term=app.loan_term,
                               summary="No change needed.")
+    if app.no_credit_history:
+        return Counterfactual(possible=False, summary=(
+            "Verify income with recent bank statements and salary slips. A smaller first loan, or a co-applicant "
+            "with a credit history, makes approval easier and starts building the applicant's record."))
+    if any(c.id == "employment" for c in checks):
+        return Counterfactual(possible=False, summary=(
+            "Income has to be verified by a credit officer first; changing the amount or term won't settle that."))
     blocking = [c for c in checks if c.id in ("age", "cibil") and c.status != "pass"]
     if blocking:
         b = blocking[0]
@@ -71,10 +84,11 @@ def counterfactual(app: ApplicationIn, decision: str, checks: list[RuleCheck]) -
     cands = [{"loan_amount": round(app.loan_amount * f, -3), "loan_term": t}
              for f in fractions for t in terms]
     probs = model.predict(app, cands)
-    for cand, p in zip(cands, probs):          # largest amount first, then term closest to the request
+    risks = risk.probability(app, cands)       # one batch for every variation, not one call each
+    for cand, p, rp in zip(cands, probs, risks):   # largest amount first, then term closest to the request
         if p < C.APPROVE_AT:
             continue
-        checks_c = run_rules(app, cand["loan_amount"], cand["loan_term"])
+        checks_c = run_rules(app, cand["loan_amount"], cand["loan_term"], risk_p=float(rp))
         if any(c.status != "pass" for c in checks_c):
             continue
         d, _, _ = decide(float(p), checks_c, model.out_of_range(app.model_copy(update=cand)))
@@ -100,20 +114,22 @@ def counterfactual(app: ApplicationIn, decision: str, checks: list[RuleCheck]) -
 
 
 def assess(app: ApplicationIn, with_counterfactual: bool = True) -> dict:
-    p = float(model.predict(app)[0])
+    ntc = app.no_credit_history
+    p = None if ntc else float(model.predict(app)[0])
     checks = run_rules(app)
-    ood = model.out_of_range(app)
+    ood = [] if ntc else model.out_of_range(app)
     decision, reasons, flags = decide(p, checks, ood)
     new_emi, ratio = foir(app)
     return {
         "decision": decision,
-        "approval_probability": round(p, 4),
+        "approval_probability": None if p is None else round(p, 4),
         "reasons": reasons,
         "rule_checks": checks,
-        "drivers": model.drivers(app),
+        "drivers": [] if ntc else model.drivers(app),
         "counterfactual": (counterfactual(app, decision, checks) if with_counterfactual
                            else Counterfactual(possible=False, summary="")),
         "flags": flags,
         "emi_estimate": round(new_emi, 2),
+        "repayment_risk": risk.assess(app),
         "foir": round(ratio, 4),
     }

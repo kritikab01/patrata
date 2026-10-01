@@ -26,7 +26,7 @@ const MOBILE = ['/', '/new', '/cases', '/assistant']
 function Logo() {
   return (
     <div className="flex items-center gap-2.5">
-      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#1E2A5A" /><path d="M11 24V8h6.5a5 5 0 0 1 0 10H11" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0A0A0A" /><path d="M11 24V8h6.5a5 5 0 0 1 0 10H11" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
       <div className="leading-none">
         <div className="text-[19px] font-bold tracking-tight">Patrata</div>
         <div lang="hi" className="mt-0.5 text-[12px] text-muted">पात्रता</div>

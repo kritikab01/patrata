@@ -4,10 +4,11 @@ import { api } from '../lib/api'
 import { Card, CardTitle, Kpi, PageHead, Skeleton } from '../components/ui'
 
 const STACK = [
-  ['Machine learning', 'Python, pandas, XGBoost with monotone constraints, SHAP explanations'],
-  ['Backend', 'FastAPI with Pydantic validation, SQLite audit log, 35 automated tests'],
+  ['Machine learning', 'Two XGBoost models with monotone constraints and SHAP: approval (4,269 Indian applications) and repayment risk (307,511 real loans)'],
+  ['Backend', 'FastAPI with Pydantic validation, SQLite audit log, 61 automated tests'],
   ['Generative AI', 'Llama 3.3 70B on Groq (free tier) for explanations and the assistant; Gemini, OpenAI, OpenRouter or local Ollama with one setting'],
   ['Retrieval', 'BM25 search over Patrata\'s policy notes, with cited answers'],
+  ['AI agent', 'Review Agent: the LLM plans tool calls (re-score, policy lookup, loan cost) in a guarded loop and drafts a memo; a person decides'],
   ['Frontend', 'React, TypeScript, Tailwind CSS, Recharts, Web Speech API for voice'],
   ['Hosting', 'Docker on Hugging Face Spaces, one link for the app and the API'],
 ]
@@ -44,10 +45,10 @@ export default function ModelCard() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={acc} layout="vertical" margin={{ left: 10, right: 50 }}>
                     <XAxis type="number" domain={[0.8, 1]} hide />
-                    <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 13, fill: '#1E2A5A' }} tickLine={false} axisLine={false} />
+                    <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 13, fill: '#0A0A0A' }} tickLine={false} axisLine={false} />
                     <RBar dataKey="v" radius={[0, 6, 6, 0]}>
-                      {acc.map((a, i) => <Cell key={i} fill={i === 2 ? '#1E2A5A' : '#8C96AB'} />)}
-                      <LabelList dataKey="v" position="right" formatter={(v: any) => `${(v * 100).toFixed(1)}%`} style={{ fontSize: 13, fill: '#1E2A5A', fontWeight: 600 }} />
+                      {acc.map((a, i) => <Cell key={i} fill={i === 2 ? '#0A0A0A' : '#A1A1AA'} />)}
+                      <LabelList dataKey="v" position="right" formatter={(v: any) => `${(v * 100).toFixed(1)}%`} style={{ fontSize: 13, fill: '#0A0A0A', fontWeight: 600 }} />
                     </RBar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -60,8 +61,8 @@ export default function ModelCard() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={imp} layout="vertical" margin={{ left: 10, right: 30 }}>
                     <XAxis type="number" hide />
-                    <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 12, fill: '#1E2A5A' }} tickLine={false} axisLine={false} />
-                    <RBar dataKey="v" fill="#1E2A5A" radius={[0, 6, 6, 0]} />
+                    <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 12, fill: '#0A0A0A' }} tickLine={false} axisLine={false} />
+                    <RBar dataKey="v" fill="#0A0A0A" radius={[0, 6, 6, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -102,6 +103,49 @@ export default function ModelCard() {
               <p className="mt-2 text-[12px] text-muted">*Only together with a review flag. The model never declines alone.</p>
             </Card>
           </div>
+
+          {m.risk_model && (() => {
+            const k = m.risk_model
+            const lift = k.metrics.decile_lift.map((v: number, i: number) => ({ d: `${i + 1}`, v }))
+            return (
+              <Card>
+                <CardTitle sub={`${k.data_source}. Version ${k.model_version}.`}>Second model: repayment risk from {k.rows.toLocaleString('en-IN')} real loans</CardTitle>
+                <div className="grid gap-6 lg:grid-cols-3">
+                  <div className="space-y-3 text-sm">
+                    <p>Predicts the chance of payment difficulties using only currency-free facts: EMI as a share of income, age, years in the job, employment type, dependents, and home and vehicle ownership.</p>
+                    <p><b>ROC-AUC {k.metrics.roc_auc.toFixed(3)}</b> (logistic regression {k.metrics.logistic_regression_roc_auc.toFixed(3)}). Modest, and realistic: real default prediction is hard, which is why this model informs the decision and never declines alone.</p>
+                    <p className="text-muted">Excluded on purpose: {k.excluded_on_purpose.join(', ')}.</p>
+                  </div>
+                  <div>
+                    <p className="mb-1 text-sm text-muted">Default rate by risk decile, vs the {(k.base_default_rate * 100).toFixed(1)}% average</p>
+                    <div className="h-[180px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={lift} margin={{ left: -24, right: 4, top: 4 }}>
+                          <XAxis dataKey="d" tick={{ fontSize: 11, fill: '#52525B' }} tickLine={false} axisLine={false} />
+                          <YAxis tick={{ fontSize: 11, fill: '#52525B' }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}x`} />
+                          <RBar dataKey="v" radius={[4, 4, 0, 0]}>{lift.map((x: any, i: number) => <Cell key={i} fill={x.v >= 1 ? '#B42318' : '#0A0A0A'} />)}</RBar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <p className="text-[12px] text-muted">The riskiest 10% default {k.metrics.top_vs_bottom_decile}× as often as the safest 10%.</p>
+                  </div>
+                  <div className="text-sm">
+                    <p className="mb-2 text-muted">What actually happened in each band (test set of {k.metrics.test_rows.toLocaleString('en-IN')})</p>
+                    <table className="w-full">
+                      <tbody>
+                        {(['low', 'medium', 'high'] as const).map((b) => (
+                          <tr key={b}><td className="border-b border-line-2 py-1.5 capitalize">{b} risk</td>
+                            <td className="border-b border-line-2 py-1.5 text-right">{Math.round(k.metrics.band_outcomes[b].share * 100)}% of borrowers</td>
+                            <td className="border-b border-line-2 py-1.5 text-right font-semibold">{(k.metrics.band_outcomes[b].actual_default_rate * 100).toFixed(1)}% defaulted</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="mt-3 text-muted">Fairness: average predicted risk {Object.entries(k.fairness_mean_predicted_risk.gender).map(([g, v]: any) => `${g === 'F' ? 'women' : g === 'M' ? 'men' : g} ${(v * 100).toFixed(1)}%`).join(', ')}.</p>
+                  </div>
+                </div>
+              </Card>
+            )
+          })()}
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>

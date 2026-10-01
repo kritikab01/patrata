@@ -31,11 +31,12 @@ function sampleBatch(): Record<string, string>[] {
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
   return Array.from({ length: 24 }, (_, i) => {
     const income = Math.round((4 + rnd() * 40) * 1e5 / 1e4) * 1e4
-    const r: Record<string, number | string> = {
+    const r: Record<string, number | string | boolean | null> = {
       ref: `LEAD-${1001 + i}`, ...BASE, income_annum: income, loan_amount: Math.round(income * (1.2 + rnd() * 1.6) / 1e4) * 1e4,
       loan_term: [8, 10, 12, 15, 15, 20][Math.floor(rnd() * 6)], cibil_score: Math.round(560 + rnd() * 330),
+      employment_type: ['salaried', 'salaried', 'self_employed', 'government'][Math.floor(rnd() * 4)], years_in_job: 1 + Math.floor(rnd() * 12),
       existing_emi_monthly: rnd() < 0.6 ? 0 : Math.round(income / 12 * rnd() * 0.2 / 100) * 100,
-      age: 24 + Math.floor(rnd() * 30), residential_assets_value: Math.round(income * rnd() * 3 / 1e4) * 1e4,
+      age: 30 + Math.floor(rnd() * 25), residential_assets_value: Math.round(income * rnd() * 3 / 1e4) * 1e4,
     }
     if (i === 17) r.cibil_score = 1200          // one deliberately bad row, to show validation
     return Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v)]))
@@ -66,7 +67,7 @@ export default function Batch() {
     if (!rows) return
     setBusy(true); setErr('')
     try {
-      const payload = rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, k === 'ref' ? v : v === '' ? null : Number(v.replace(/,/g, ''))])))
+      const payload = rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, k === 'ref' || k === 'employment_type' ? v || 'salaried' : v === '' ? null : Number(v.replace(/,/g, ''))])))
       setOut(await api<Out>('/batch', { json: { rows: payload } }))
     } catch { setErr('Scoring failed. Check the file and try again.') } finally { setBusy(false) }
   }

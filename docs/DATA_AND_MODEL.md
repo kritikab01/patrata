@@ -1,4 +1,15 @@
-# Data and model
+# Data and models
+
+Patrata uses **two models trained on 311,768 loans in total**:
+
+| Model | Data | Predicts | Quality |
+|---|---|---|---|
+| Approval model | 4,269 Indian applications (Kaggle) | Would a lender approve this? | 98.7% accuracy, near-rule-based data |
+| Repayment-risk model | 307,499 real loans (Home Credit) | Will the borrower have payment difficulties? | ROC-AUC 0.62, realistic |
+
+The approval model mirrors Indian lending practice (CIBIL, assets); the risk model brings real repayment
+behaviour. Neither declines anyone on its own: policy rules and a human credit manager have the final say.
+
 
 ## The dataset
 
@@ -90,3 +101,43 @@ a default outcome) or *Home Credit Default Risk* (real lender data, much larger)
 These are business policy, set in `backend/app/config.py`, not trained:
 age 21 to 60, CIBIL floor 600 and review band 600 to 699, EMI burden review above 50% and decline above 65%,
 approve only at 75%+ model likelihood. Changing them changes decisions immediately, with no retraining.
+
+## The second model: repayment risk (`train/train_risk.py`)
+
+**Data:** Home Credit Default Risk (Kaggle competition), `application_train.csv`: 307,511 real loans from
+Home Credit, a lender serving people with little or no credit history. `TARGET = 1` means the client had
+payment difficulties. Average default rate 8.07%.
+
+**Why only these features:** the source currency isn't the rupee, so absolute amounts can't transfer.
+Only unit-free facts are used, and each one can be entered on Patrata's form:
+
+| Feature | From Patrata's form |
+|---|---|
+| New EMI as share of income | EMI from amount, rate and term ÷ income |
+| Age | Age |
+| Years in current job | New field |
+| Employment type (salaried, self-employed, government, pensioner, not employed) | New field |
+| Dependents | Dependents |
+| Owns a home / vehicle | Residential property / vehicles value above zero |
+
+**Left out on purpose:** gender, education, marital status (fairness), absolute income (currency).
+
+**Results on 61,500 held-out loans:** ROC-AUC 0.62 (logistic regression 0.619). The riskiest 10% default
+3.5× as often as the safest 10%. Risk bands (relative to the 8.07% average):
+
+| Band | Rule | Share of borrowers | Actually defaulted |
+|---|---|---|---|
+| Low | below 6.05% | 36% | 5.1% |
+| Medium | 6.05% to 12.1% | 49% | 8.6% |
+| High | 12.1% and above (1.5× average) | 14% | 13.6% |
+
+A **high** band adds a "Repayment risk" review flag, so the case goes to a credit officer. It never
+declines on its own. The model learned almost nothing about unemployed borrowers (only 45 such loans), so a
+policy rule sends every "not employed" applicant to a human instead.
+
+Fairness check: average predicted risk for women 7.97%, men 8.26%.
+
+**Retrain:** download `application_train.csv` from
+https://www.kaggle.com/c/home-credit-default-risk/data, save it as
+`backend/data/home_credit_application_train.csv`, then run `python train/train_risk.py` (about a minute).
+The 166 MB CSV is not committed; the trained model (`artifacts/risk_model.json`) is.

@@ -37,6 +37,10 @@ def _applicant(rng: random.Random) -> dict:
         "luxury_assets_value": round(income * rng.uniform(0.3, 2.5), -4),
         "bank_asset_value": round(income * rng.uniform(0.2, 1.2), -4),
         "existing_emi_monthly": round(income / 12 * emi_share, -2), "annual_rate": rng.choice([10.5, 11.5, 12, 13]),
+        "employment_type": rng.choices(["salaried", "self_employed", "government", "pensioner", "not_employed"],
+                                       [55, 25, 12, 5, 3])[0],
+        "years_in_job": round(min(age - 18, rng.choice([0.5, 1, 2, 3, 5, 8, 12])), 1),
+        "no_credit_history": rng.random() < 0.05,
     }
 
 

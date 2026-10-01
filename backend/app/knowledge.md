@@ -7,7 +7,7 @@ Keywords: meaning of refer referred decline declined approve approved outcome re
 
 ## CIBIL score bands
 A CIBIL score runs from 300 to 900. Patrata's policy treats 700 and above as clear, 600 to 699 as needing a credit officer's review, and below 600 as a decline. In the training data, approvals jump from about 10% below a score of 550 to over 99% at 550 and above, which is why the policy bands matter: they stop a one-point change in score from swinging a decision from decline straight to approve.
-Keywords: minimum CIBIL credit score needed required threshold
+Keywords: minimum CIBIL credit score need needed required threshold good score what score
 
 ## FOIR and EMI burden
 FOIR stands for Fixed Obligation to Income Ratio. It is all monthly EMIs, existing plus the new loan's EMI, divided by monthly income. Patrata treats up to 50% as clear, 50% to 65% as needing review, and above 65% as a decline. Lower the FOIR by reducing the loan amount, extending the term, or closing an existing loan.
@@ -60,3 +60,68 @@ On each result, the what-if simulator lets the officer move the loan amount, ter
 
 ## Hindi support
 Explanations and assistant answers are available in English and Hindi. Use the language switch on the result or in the assistant.
+
+## Repayment risk model
+Patrata has a second model that estimates repayment risk: the chance a borrower has payment difficulties. It was trained on 307,511 real loans from Home Credit, a lender that serves people with little or no credit history. Because that data uses a different currency, it only uses currency-free facts: the new EMI as a share of income, age, years in the current job, employment type, dependents, and whether the applicant owns a home or vehicle. Gender, education and marital status were left out on purpose. The average default rate in the data is 8.1%; a borrower at 1.5 times that or more is high risk and goes to a credit officer. It never declines anyone on its own. Its ROC-AUC is 0.62, which is modest but realistic, and the riskiest tenth of borrowers default 3.5 times as often as the safest tenth.
+Keywords: default risk repayment probability Home Credit real data second model 307511 employment job stability years
+
+## Employment and job stability
+Lenders look at how stable the income is. Salaried and government employees with several years in the same job are lower risk; people new to a job, or very young borrowers, default more often in the data. Self-employed applicants are judged on business vintage, so enter years running the business. Applicants with no regular employment are always sent to a credit officer to verify income.
+Keywords: salaried self employed business government pensioner unemployed not employed job jobs change changing switch new job stability vintage affect
+
+## Types of retail loans
+Common retail loans in India: personal loans (unsecured, usually 1 to 5 years, higher interest), home loans (secured on the property, up to 20 to 30 years, lower interest), loan against property, car and two-wheeler loans (secured on the vehicle), gold loans (secured on gold jewellery, quick, short term), education loans, and business or MSME loans. Secured loans are cheaper because the lender can recover the asset; unsecured loans rely entirely on income and credit history.
+Keywords: personal loan home loan housing car loan vehicle two wheeler gold loan education loan business loan MSME secured unsecured types kinds
+
+## Documents usually needed
+Lenders typically ask for KYC (PAN and Aadhaar or another address proof), income proof (recent salary slips, Form 16 or income tax returns), and bank statements for the last several months. Self-employed applicants usually need two to three years of income tax returns, business proof such as GST registration, and business bank statements. Home loans also need property papers. Exact lists vary by lender.
+Keywords: documents papers KYC PAN Aadhaar salary slip payslip ITR income tax return Form 16 bank statement proof required need
+
+## How to improve a CIBIL score
+Pay every EMI and credit card bill on time, since payment history matters most. Keep credit card use well below the limit (many advisers suggest under about 30%). Avoid applying to many lenders in a short time, because each application adds a hard enquiry. Keep old accounts open, keep a healthy mix of secured and unsecured credit, and check your credit report regularly for errors. Scores improve gradually over months, not days.
+Keywords: improve increase raise boost build fix CIBIL credit score low score repair tips how to
+
+## Disputing errors in a credit report
+Credit reports can contain mistakes, such as a closed loan shown as open or someone else's account. You can raise a dispute with the credit bureau (for example CIBIL) online, and the bureau checks with the lender. CIBIL received about 22.9 lakh complaints in 2024-25, of which around 5.8 lakh were due to its own errors, so it is worth checking your report.
+Keywords: dispute error mistake wrong incorrect credit report correction complaint CIBIL bureau
+
+## Hard and soft enquiries
+A hard enquiry happens when a lender pulls your credit report because you applied for a loan or card; many hard enquiries close together can lower your score. A soft enquiry, such as checking your own score or a pre-approved offer check, does not affect it. Patrata's pre-screening itself does not pull a credit report.
+Keywords: hard enquiry soft enquiry inquiry credit check pull affects score multiple applications
+
+## New to credit borrowers
+People with no credit history are often called new to credit. The RBI's Master Direction of 6 January 2025 says first-time borrowers should not be rejected only because they have no credit history. Lenders can look at income stability, bank statements and other information instead. A small secured credit card or a small loan repaid on time is a common way to start building a history.
+Patrata supports this: choose 'No credit history yet' on the form. The approval model is skipped (it needs a CIBIL score), the repayment-risk model still runs because it doesn't use CIBIL, and the case goes to a credit officer to check income and bank statements instead of being declined.
+Keywords: no credit history first time borrower new to credit NTC thin file no CIBIL score build credit history
+
+## Fixed and floating interest rates
+A fixed rate stays the same for the agreed period, so the EMI is predictable. A floating rate moves with a benchmark, so the EMI or tenure can rise or fall over time. For floating-rate retail loans, banks link the rate to an external benchmark such as the RBI repo rate. Fixed rates are usually set a little higher to cover the lender's risk.
+Keywords: fixed floating variable interest rate repo rate benchmark EBLR MCLR which is better
+
+## Tenure and EMI trade-off
+A longer tenure lowers the monthly EMI but increases the total interest paid; a shorter tenure does the opposite. A common approach is to choose the shortest tenure whose EMI still fits comfortably within your budget, and prepay when you can.
+Keywords: tenure term longer shorter reduce EMI total interest trade off duration years
+
+## Prepayment and foreclosure
+Prepaying part of a loan reduces either the EMI or the remaining tenure, and saves interest. RBI rules do not allow foreclosure or prepayment charges on floating-rate term loans taken by individuals for purposes other than business. Fixed-rate loans and business loans may carry charges, so check the loan agreement.
+Keywords: prepayment part payment foreclosure close loan early charges penalty pay off
+
+## Key Fact Statement and loan costs
+Banks and NBFCs must give borrowers a Key Fact Statement (KFS) for retail and MSME loans before signing. It shows the annual percentage rate (APR), which includes interest and fees, the EMI schedule, and charges. Compare loans on APR, not just the headline interest rate. Processing fees, insurance and other charges all add to the real cost.
+Keywords: KFS key fact statement APR annual percentage rate processing fee charges hidden costs compare loans
+
+## Co-applicants and guarantors
+Adding a co-applicant, usually a spouse or parent with income, lets the lender count both incomes, which lowers the EMI burden and can raise the eligible amount. Both are equally responsible for repayment, and the loan appears on both credit reports. A guarantor only pays if the borrower doesn't.
+Keywords: co-applicant co applicant joint loan spouse guarantor add income increase eligibility
+
+## Balance transfer and debt consolidation
+A balance transfer moves an existing loan to another lender offering a lower rate; it can save money if the rate gap outweighs fees. Debt consolidation combines several high-interest debts, such as credit card dues, into one cheaper loan, which can lower the total EMI burden.
+Keywords: balance transfer refinance switch lender lower rate debt consolidation credit card debt combine
+
+## Complaints and grievance redressal
+If a lender doesn't resolve a complaint, borrowers can escalate to the lender's grievance redressal officer, and then to the RBI Ombudsman under the Integrated Ombudsman Scheme, usually if there is no satisfactory reply within 30 days. Digital lending apps must also show grievance contact details.
+Keywords: complaint grievance ombudsman RBI escalate harassment recovery agent problem with lender
+
+## Review Agent
+For a referred or flagged case, the credit manager can ask the Review Agent for help. It is an AI agent: the language model decides which tool to use next (re-score the application with a different amount, term or EMIs; look up policy; work out the full loan cost including the processing fee and APR), reads each result, and after at most four steps writes a memo recommending approve, approve with conditions, decline, or more information. Its memo is checked so every number comes from a tool, and it can never recommend a plain approval when a hard policy rule failed. It only advises: the credit manager records the final decision and reason. Without an AI connection, a scripted plan runs the same tools.
+Keywords: agent agentic AI review agent copilot tools memo credit manager assistant automation

@@ -59,6 +59,10 @@ def build_facts(result: dict) -> dict:
             for d in result["drivers"][:4]
         ],
         "estimated_new_emi": inr(result["emi_estimate"]) + " per month",
+        "repayment_risk": ({"band": result["repayment_risk"]["band"],
+                            "probability": f"{result['repayment_risk']['probability'] * 100:.1f}%",
+                            "average_borrower": f"{result['repayment_risk']['base_rate'] * 100:.1f}%"}
+                           if result.get("repayment_risk") else None),
         "suggested_change": result["counterfactual"]["summary"],
         "flags": result["flags"],
     }
@@ -196,7 +200,7 @@ def call_llm(system: str, payload: str) -> str:
 def template_explanation(result: dict, lang: str) -> dict:
     d = result["decision"]
     word = DECISION_WORDS[lang][d]
-    p_txt = pct(result["approval_probability"])
+    p_txt = pct(result.get("approval_probability"))
     top = [x for x in result["drivers"][:3]]
     if lang == "hi":
         summary = f"निर्णय: {word}। मॉडल के अनुसार स्वीकृति की संभावना {p_txt} है।"
