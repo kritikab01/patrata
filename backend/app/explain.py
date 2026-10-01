@@ -200,7 +200,7 @@ def call_llm(system: str, payload: str) -> str:
 def template_explanation(result: dict, lang: str) -> dict:
     d = result["decision"]
     word = DECISION_WORDS[lang][d]
-    p_txt = pct(result["approval_probability"])
+    p_txt = pct(result.get("approval_probability"))
     top = [x for x in result["drivers"][:3]]
     if lang == "hi":
         summary = f"निर्णय: {word}। मॉडल के अनुसार स्वीकृति की संभावना {p_txt} है।"

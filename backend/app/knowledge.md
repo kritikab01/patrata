@@ -91,6 +91,7 @@ Keywords: hard enquiry soft enquiry inquiry credit check pull affects score mult
 
 ## New to credit borrowers
 People with no credit history are often called new to credit. The RBI's Master Direction of 6 January 2025 says first-time borrowers should not be rejected only because they have no credit history. Lenders can look at income stability, bank statements and other information instead. A small secured credit card or a small loan repaid on time is a common way to start building a history.
+Patrata supports this: choose 'No credit history yet' on the form. The approval model is skipped (it needs a CIBIL score), the repayment-risk model still runs because it doesn't use CIBIL, and the case goes to a credit officer to check income and bank statements instead of being declined.
 Keywords: no credit history first time borrower new to credit NTC thin file no CIBIL score build credit history
 
 ## Fixed and floating interest rates
@@ -120,3 +121,7 @@ Keywords: balance transfer refinance switch lender lower rate debt consolidation
 ## Complaints and grievance redressal
 If a lender doesn't resolve a complaint, borrowers can escalate to the lender's grievance redressal officer, and then to the RBI Ombudsman under the Integrated Ombudsman Scheme, usually if there is no satisfactory reply within 30 days. Digital lending apps must also show grievance contact details.
 Keywords: complaint grievance ombudsman RBI escalate harassment recovery agent problem with lender
+
+## Review Agent
+For a referred or flagged case, the credit manager can ask the Review Agent for help. It is an AI agent: the language model decides which tool to use next (re-score the application with a different amount, term or EMIs; look up policy; work out the full loan cost including the processing fee and APR), reads each result, and after at most four steps writes a memo recommending approve, approve with conditions, decline, or more information. Its memo is checked so every number comes from a tool, and it can never recommend a plain approval when a hard policy rule failed. It only advises: the credit manager records the final decision and reason. Without an AI connection, a scripted plan runs the same tools.
+Keywords: agent agentic AI review agent copilot tools memo credit manager assistant automation

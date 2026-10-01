@@ -3,6 +3,7 @@ import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { Bot, ClipboardCheck, FilePlus2, FolderKanban, Gauge, Layers, MoreHorizontal, ShieldCheck, X } from 'lucide-react'
 import { api } from './lib/api'
 import { cx } from './components/ui'
+import ErrorBoundary from './components/ErrorBoundary'
 import Dashboard from './pages/Dashboard'
 import NewApplication from './pages/NewApplication'
 import Cases from './pages/Cases'
@@ -26,7 +27,7 @@ const MOBILE = ['/', '/new', '/cases', '/assistant']
 function Logo() {
   return (
     <div className="flex items-center gap-2.5">
-      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#1E2A5A" /><path d="M11 24V8h6.5a5 5 0 0 1 0 10H11" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0A0A0A" /><path d="M11 24V8h6.5a5 5 0 0 1 0 10H11" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
       <div className="leading-none">
         <div className="text-[19px] font-bold tracking-tight">Patrata</div>
         <div lang="hi" className="mt-0.5 text-[12px] text-muted">पात्रता</div>
@@ -90,6 +91,7 @@ export default function App() {
         </header>
 
         <main className="mx-auto w-full max-w-[1180px] px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-12 lg:pt-8">
+          <ErrorBoundary key={pathname}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/new" element={<NewApplication />} />
@@ -101,6 +103,7 @@ export default function App() {
             <Route path="/model" element={<ModelCard />} />
             <Route path="*" element={<div className="py-20 text-center"><p className="text-lg font-semibold">Page not found</p><NavLink className="mt-3 inline-block underline" to="/">Go to the dashboard</NavLink></div>} />
           </Routes>
+          </ErrorBoundary>
         </main>
       </div>
 

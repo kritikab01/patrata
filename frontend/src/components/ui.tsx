@@ -6,7 +6,7 @@ import { SHORT, STAMP, TONE } from '../lib/format'
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ')
 
 export function Card({ children, className = '', as: As = 'section', ...rest }: { children: ReactNode; className?: string; as?: any; [k: string]: any }) {
-  return <As className={cx('rounded-2xl border border-line bg-white p-5 sm:p-6', className)} {...rest}>{children}</As>
+  return <As className={cx('rounded-[14px] border border-line bg-white p-5 sm:p-6', className)} {...rest}>{children}</As>
 }
 
 export function CardTitle({ children, right, sub }: { children: ReactNode; right?: ReactNode; sub?: ReactNode }) {
@@ -21,17 +21,18 @@ export function CardTitle({ children, right, sub }: { children: ReactNode; right
   )
 }
 
-type BtnKind = 'primary' | 'ghost' | 'quiet' | 'danger' | 'ok'
+type BtnKind = 'primary' | 'dark' | 'ghost' | 'quiet' | 'danger' | 'ok'
 export function Button({ kind = 'primary', className = '', children, ...rest }: { kind?: BtnKind; className?: string; children: ReactNode } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   const k: Record<BtnKind, string> = {
-    primary: 'bg-ink text-white hover:bg-ink-2',
+    primary: 'bg-brand text-white hover:bg-brand-2',
+    dark: 'bg-ink text-white hover:bg-ink-2',
     ghost: 'border border-ink bg-white text-ink hover:bg-paper',
     quiet: 'bg-transparent text-ink hover:bg-paper',
     danger: 'bg-bad text-white hover:brightness-95',
     ok: 'bg-ok text-white hover:brightness-95',
   }
   return (
-    <button className={cx('inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 font-semibold transition disabled:cursor-progress disabled:opacity-60', k[kind], className)} {...rest}>
+    <button className={cx('inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] px-4 font-semibold transition disabled:cursor-progress disabled:opacity-60', k[kind], className)} {...rest}>
       {children}
     </button>
   )
@@ -49,16 +50,31 @@ export function StatusPill({ status }: { status: string }) {
 }
 
 export function CheckPill({ s }: { s: 'pass' | 'refer' | 'fail' }) {
-  const m = { pass: ['Pass', 'bg-ok-bg text-ok'], refer: ['Review', 'bg-warn-bg text-warn'], fail: ['Fail', 'bg-bad-bg text-bad'] }[s]
-  return <span className={cx('inline-flex w-[64px] justify-center rounded-full py-0.5 text-[13px] font-semibold', m[1])}>{m[0]}</span>
+  // Vault-style ledger marker: filled square = pass, outline = review, cross = fail. Text always shown.
+  const m = { pass: ['Pass', 'text-ink'], refer: ['Review', 'text-warn'], fail: ['Fail', 'text-bad'] }[s]
+  return (
+    <span className={cx('inline-flex w-[76px] items-center gap-2 text-[13px] font-semibold', m[1])}>
+      {s === 'pass' ? <i className="block h-2.5 w-2.5 bg-ink" /> : s === 'refer' ? <i className="block h-2.5 w-2.5 border-2 border-warn" /> :
+        <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="2.4" /></svg>}
+      {m[0]}
+    </span>
+  )
 }
 
-export function Stamp({ d, size = 'lg' }: { d: Decision; size?: 'lg' | 'sm' }) {
-  return <div aria-hidden="true" className={cx('stamp stamp-land shrink-0', TONE[d].text, size === 'lg' ? 'text-[26px] sm:text-[34px]' : 'text-lg')}>{STAMP[d]}</div>
+export function StatusIcon({ d, size = 56 }: { d: Decision; size?: number }) {
+  // UPI-style status circle: a check, a clock or a cross, never colour alone.
+  const c = { APPROVE: '#047857', REFER: '#B45309', DECLINE: '#B42318' }[d]
+  return (
+    <span className="grid shrink-0 place-items-center rounded-full bg-white" style={{ width: size, height: size }} aria-hidden="true">
+      <svg width={size * 0.5} height={size * 0.5} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        {d === 'APPROVE' ? <path d="M5 12.5l4.5 4.5L19 7.5" /> : d === 'REFER' ? <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></> : <path d="M6 6l12 12M18 6L6 18" />}
+      </svg>
+    </span>
+  )
 }
 
 export function SampleBadge() {
-  return <span className="rounded-md bg-sky px-1.5 py-0.5 text-[11px] font-medium text-ink" title="Generated sample data for the demo">Sample</span>
+  return <span className="rounded border border-line px-1.5 py-0.5 text-[11px] font-medium text-muted" title="Generated sample data for the demo">Sample</span>
 }
 
 export function Notice({ tone = 'warn', title, children }: { tone?: 'warn' | 'info' | 'bad'; title?: ReactNode; children: ReactNode }) {
@@ -155,9 +171,9 @@ export function useDebounced<T>(value: T, ms = 350) {
 
 export function Kpi({ label, value, sub, tone }: { label: string; value: ReactNode; sub?: ReactNode; tone?: string }) {
   return (
-    <div className="rounded-2xl border border-line bg-white p-4 sm:p-5">
+    <div className="rounded-[4px] border border-line border-t-ink bg-white p-4 sm:p-5" style={{ borderTopWidth: 3 }}>
       <p className="text-sm text-muted">{label}</p>
-      <p className={cx('mt-1 text-[28px] font-semibold leading-tight tracking-tight', tone)}>{value}</p>
+      <p className={cx('mt-1 font-display text-[30px] font-extrabold leading-tight tracking-tight', tone)}>{value}</p>
       {sub && <p className="mt-1 text-[13px] text-muted">{sub}</p>}
     </div>
   )
@@ -167,7 +183,7 @@ export function PageHead({ title, sub, right }: { title: ReactNode; sub?: ReactN
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-[26px] font-semibold leading-tight tracking-tight sm:text-[30px]">{title}</h1>
+        <h1 className="text-[28px] font-extrabold leading-tight tracking-tight sm:text-[34px]">{title}</h1>
         {sub && <p className="mt-1 max-w-2xl text-muted">{sub}</p>}
       </div>
       {right}

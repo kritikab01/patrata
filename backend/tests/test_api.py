@@ -352,3 +352,100 @@ def test_unrelated_question_does_not_inherit_earlier_topic():
     hist = [{"role": "user", "content": "How can I improve my CIBIL score?"}, {"role": "assistant", "content": "Pay on time."}]
     assert A.answer("Who won the cricket match?", hist)["kind"] == "guard"
     assert A.answer("Why is that?", hist)["kind"] == "grounded"     # a real follow-up still uses context
+
+
+# ---------------- Review Agent (LLM + tools + loop, human decides) ----------------
+def _referred(client):
+    return client.post("/api/score", json=base(existing_emi_monthly=40000)).json()
+
+
+def test_agent_scripted_review_without_ai(client):
+    r = _referred(client)
+    out = client.post(f"/api/applications/{r['id']}/review-agent").json()
+    assert out["source"] == "scripted" and out["steps"][0]["action"] == "simulate"
+    assert out["memo"]["recommendation"] == "APPROVE_WITH_CONDITIONS" and out["memo"]["conditions"]
+
+
+def _seq(*replies):
+    it = iter(replies)
+    return lambda s, p: next(it)
+
+
+def test_agent_runs_tools_chosen_by_the_llm(client, monkeypatch):
+    from app import agent as AG
+    monkeypatch.setattr(AG.X.C, "LLM_API_KEY", "fake")
+    r = _referred(client)
+    sim = AG.tool_simulate(r, {"loan_amount": 3150000, "loan_term": 20})
+    llm = _seq(json.dumps({"thought": "try smaller", "action": "simulate", "args": {"loan_amount": 3150000, "loan_term": 20}}),
+               json.dumps({"thought": "cost", "action": "loan_cost", "args": {"loan_amount": 3150000, "loan_term": 20}}),
+               json.dumps({"thought": "done", "final": {"recommendation": "APPROVE_WITH_CONDITIONS",
+                           "summary": f"Approvable with EMI {sim['new_emi']}.", "conditions": ["Reduce the loan"], "reasons": [], "risks": []}}))
+    out = AG.review(r, llm=llm)
+    assert out["source"] == "llm" and [s["action"] for s in out["steps"]] == ["simulate", "loan_cost"]
+
+
+def test_agent_invented_number_falls_back(client, monkeypatch):
+    from app import agent as AG
+    monkeypatch.setattr(AG.X.C, "LLM_API_KEY", "fake")
+    r = _referred(client)
+    llm = _seq(json.dumps({"action": "simulate", "args": {"loan_amount": 3150000}}),
+               json.dumps({"final": {"recommendation": "APPROVE", "summary": "EMI will be ₹11,111."}}))
+    out = AG.review(r, llm=llm)
+    assert out["source"] == "scripted" and any("number" in n for n in out["notes"])
+
+
+def test_agent_must_test_before_concluding_and_unknown_tools_are_blocked(client, monkeypatch):
+    from app import agent as AG
+    monkeypatch.setattr(AG.X.C, "LLM_API_KEY", "fake")
+    r = _referred(client)
+    assert AG.review(r, llm=_seq(json.dumps({"final": {"recommendation": "APPROVE"}})))["source"] == "scripted"
+    assert AG.review(r, llm=_seq(json.dumps({"action": "send_money", "args": {}})))["source"] == "scripted"
+
+
+def test_policy_guard_blocks_plain_approval_after_hard_fail(client, monkeypatch):
+    from app import agent as AG
+    monkeypatch.setattr(AG.X.C, "LLM_API_KEY", "fake")
+    r = client.post("/api/score", json=base(cibil_score=520)).json()
+    llm = _seq(json.dumps({"action": "simulate", "args": {"loan_term": 5}}),
+               json.dumps({"final": {"recommendation": "APPROVE", "summary": "Looks fine."}}))
+    out = AG.review(r, llm=llm)
+    assert out["memo"]["recommendation"] != "APPROVE" and out["notes"]
+
+
+def test_loan_cost_apr_includes_fee():
+    from app import agent as AG
+    c = AG.tool_loan_cost({"application": {"loan_amount": 1000000, "loan_term": 5, "annual_rate": 11}}, {})
+    assert c["monthly_emi"] == "₹21,742" and 11.3 < float(c["apr_including_fee"].rstrip("%")) < 11.6
+
+
+# ---------------- New to credit (RBI, January 2025) ----------------
+def test_first_time_borrower_is_referred_not_declined(client):
+    r = client.post("/api/score", json=base(cibil_score=None, no_credit_history=True)).json()
+    assert r["decision"] == "REFER" and r["approval_probability"] is None and "new_to_credit" in r["flags"]
+    cib = next(c for c in r["rule_checks"] if c["id"] == "cibil")
+    assert cib["value"] == "No history" and "RBI" in cib["detail"]
+    assert 0 < r["repayment_risk"]["probability"] < 1          # the risk model still works without CIBIL
+
+
+def test_missing_cibil_without_flag_is_rejected(client):
+    r = client.post("/api/score", json=base(cibil_score=None))
+    assert r.status_code == 422 and "No credit history" in r.json()["errors"][0]["message"]
+
+
+def test_first_time_borrower_still_declined_on_hard_rules(client):
+    r = client.post("/api/score", json=base(cibil_score=None, no_credit_history=True, existing_emi_monthly=60000)).json()
+    assert r["decision"] == "DECLINE"
+
+
+def test_first_time_borrower_explanation_and_agent_work(client):
+    r = client.post("/api/score", json=base(cibil_score=None, no_credit_history=True)).json()
+    e = client.post(f"/api/applications/{r['id']}/explain").json()
+    assert "not scored" in e["summary"]
+    out = client.post(f"/api/applications/{r['id']}/review-agent").json()
+    assert out["memo"]["recommendation"] == "NEEDS_MORE_INFO"
+
+
+def test_kfs_shows_apr_above_headline_rate(client):
+    r = client.post("/api/score", json=base()).json()
+    k = client.get(f"/api/applications/{r['id']}/kfs").json()
+    assert k["monthly_emi"] == "₹54,008" and float(k["apr_including_fee"].rstrip("%")) > 12.0

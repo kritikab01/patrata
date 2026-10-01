@@ -31,7 +31,7 @@ function sampleBatch(): Record<string, string>[] {
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
   return Array.from({ length: 24 }, (_, i) => {
     const income = Math.round((4 + rnd() * 40) * 1e5 / 1e4) * 1e4
-    const r: Record<string, number | string> = {
+    const r: Record<string, number | string | boolean | null> = {
       ref: `LEAD-${1001 + i}`, ...BASE, income_annum: income, loan_amount: Math.round(income * (1.2 + rnd() * 1.6) / 1e4) * 1e4,
       loan_term: [8, 10, 12, 15, 15, 20][Math.floor(rnd() * 6)], cibil_score: Math.round(560 + rnd() * 330),
       employment_type: ['salaried', 'salaried', 'self_employed', 'government'][Math.floor(rnd() * 4)], years_in_job: 1 + Math.floor(rnd() * 12),

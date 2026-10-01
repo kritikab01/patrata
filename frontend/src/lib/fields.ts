@@ -39,6 +39,7 @@ export const EXAMPLES: { name: string; note: string; data: Application }[] = [
   { name: 'Young, new job', note: '24, six months in job', data: { ...BASE, age: 24, years_in_job: 0.5, loan_term: 10, residential_assets_value: 0, luxury_assets_value: 0 } },
   { name: 'Borderline CIBIL', note: 'Score 650', data: { ...BASE, cibil_score: 650 } },
   { name: 'Low CIBIL', note: 'Score 520', data: { ...BASE, cibil_score: 520 } },
+  { name: 'First-time borrower', note: 'No credit history yet', data: { ...BASE, age: 27, years_in_job: 3, loan_amount: 1500000, loan_term: 10, cibil_score: null, no_credit_history: true } },
   { name: 'Unusual applicant', note: 'Earns ₹3 crore a year', data: { ...BASE, income_annum: 30000000, loan_amount: 6000000 } },
 ]
 
