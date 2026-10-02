@@ -13,6 +13,7 @@ interface Stats {
   daily: { date: string; APPROVE: number; REFER: number; DECLINE: number }[]
   attention_reasons: { reason: string; count: number }[]
   cibil_bands: { band: string; count: number; approve_rate: number }[]
+  by_product?: { product: string; total: number; approve: number; refer: number; decline: number }[]
 }
 
 const greeting = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening' }
@@ -84,6 +85,24 @@ export default function Dashboard() {
           </div>
         </Card>
       </div>
+
+      {s?.by_product && s.by_product.length > 0 && (
+        <Card className="mt-4">
+          <CardTitle sub="Each product has its own rules, so outcomes differ by product">Decisions by product</CardTitle>
+          <div className="space-y-3">
+            {s.by_product.map((p) => (
+              <div key={p.product}>
+                <div className="mb-1 flex justify-between text-sm"><span className="font-medium">{p.product}</span><span className="text-muted">{p.total} applications, {Math.round((p.approve / p.total) * 100)}% approved</span></div>
+                <div className="flex h-3 overflow-hidden rounded-full bg-line-2" role="img" aria-label={`${p.product}: ${p.approve} approve, ${p.refer} refer, ${p.decline} decline`}>
+                  <i className="block h-full" style={{ width: `${(p.approve / p.total) * 100}%`, background: TONE.APPROVE.hex }} />
+                  <i className="block h-full" style={{ width: `${(p.refer / p.total) * 100}%`, background: TONE.REFER.hex }} />
+                  <i className="block h-full" style={{ width: `${(p.decline / p.total) * 100}%`, background: TONE.DECLINE.hex }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.6fr]">
         <Card>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Bot, MessageCircle, PencilLine, Plus, ReceiptText, SlidersHorizontal } from 'lucide-react'
+import { ArrowLeft, Bot, MessageCircle, PencilLine, Plus, ReceiptText, Shuffle, SlidersHorizontal } from 'lucide-react'
 import { api, newRequestId } from '../lib/api'
 import type { Application, Lang, Result } from '../lib/types'
 import { inr, pct, when, WORD } from '../lib/format'
@@ -53,7 +53,7 @@ export default function CaseDetail() {
     : soft.length ? `${soft.map((c) => c.label).join(' and ')} ${soft.length > 1 ? 'need' : 'needs'} attention.` : r.reasons[0]
   const metrics: [string, string, string?][] = [
     ['EMI burden', `${(r.foir * 100).toFixed(1)}%`, r.foir > 0.65 ? 'text-bad' : r.foir > 0.5 ? 'text-warn' : ''],
-    ['Approval model', r.approval_probability == null ? 'Not scored' : pct(r.approval_probability)],
+    ['Approval model', r.approval_probability == null ? 'Not used' : pct(r.approval_probability)],
     ['Default risk', r.repayment_risk ? `${(r.repayment_risk.probability * 100).toFixed(1)}%` : 'n/a', r.repayment_risk?.band === 'high' ? 'text-bad' : ''],
   ]
   const actions = [
@@ -74,7 +74,7 @@ export default function CaseDetail() {
             <div className="flex items-start gap-4">
               <StatusIcon d={r.decision} size={52} />
               <div className="min-w-0">
-                <p className="flex flex-wrap items-center gap-2 text-[13px] text-zinc-300">Recommendation, application {r.id}, {when(r.created_at)} {r.sample && <span className="rounded border border-zinc-600 px-1.5 text-[11px]">Sample</span>}</p>
+                <p className="flex flex-wrap items-center gap-2 text-[13px] text-zinc-300">{r.variant_name ? `${r.product_name}, ${r.variant_name}` : 'No product chosen'}, application {r.id}, {when(r.created_at)} {r.sample && <span className="rounded border border-zinc-600 px-1.5 text-[11px]">Sample</span>}</p>
                 <h1 className="mt-1 text-[28px] font-extrabold leading-[1.05] sm:text-[36px]">{WORD[r.decision]}</h1>
                 <p className="mt-2 text-zinc-200">{reasonLine}</p>
               </div>
@@ -91,7 +91,9 @@ export default function CaseDetail() {
           </div>
           <div className="space-y-3 p-5 sm:p-6">
             <div className="flex flex-wrap items-center gap-2"><StatusPill status={r.status} />{r.sample && <SampleBadge />}</div>
-            {r.approval_probability == null && <Notice tone="info" title="First-time borrower.">No CIBIL score, so the approval model isn't used. The repayment-risk model still runs, and a credit officer checks income and bank statements.</Notice>}
+            {r.approval_probability == null && r.application.no_credit_history && <Notice tone="info" title="First-time borrower.">No CIBIL score, so the approval model isn't used. The repayment-risk model still runs, and a credit officer checks income and bank statements.</Notice>}
+            {r.approval_probability == null && !r.application.no_credit_history && r.approval_model_note && <Notice tone="info" title="Approval model not used.">{r.approval_model_note.replace('Not used: ', '')} So this decision rests on the variant's own rules and the repayment-risk model.</Notice>}
+            {r.emi_detail?.starting_emi != null && <Notice tone="info" title="Flexi Hybrid.">EMI is {inr(r.emi_detail.starting_emi)} (interest only) for the first {r.emi_detail.interest_only_months} months, then {inr(r.emi_detail.emi)}. Affordability was tested on the higher EMI.</Notice>}
             {conflict && <Notice title="The model and the policy disagree.">{r.reasons[r.reasons.length - 1]}</Notice>}
             {ood && <Notice tone="info">{r.reasons.find((x) => x.startsWith('These inputs')) || 'These inputs are outside the training data.'}</Notice>}
             {r.warnings.map((w) => <Notice key={w}>{w}</Notice>)}
@@ -111,6 +113,22 @@ export default function CaseDetail() {
               <Button disabled={busy} onClick={() => recheck({ ...r.application, loan_amount: offer.loan_amount!, loan_term: offer.loan_term || r.application.loan_term })}>
                 {busy ? 'Checking…' : 'Check with this amount'}
               </Button>
+            </div>
+          </section>
+        )}
+
+        {r.other_variants && r.other_variants.length > 0 && (
+          <section className="mt-4 rounded-[14px] border border-line bg-white p-5 sm:p-6">
+            <p className="flex items-center gap-2 font-display text-[17px] font-extrabold"><Shuffle size={18} aria-hidden="true" />Variants this applicant fits as asked</p>
+            <p className="mb-3 text-sm text-muted">Same details, judged by each other variant's rules.</p>
+            <div className="flex flex-wrap gap-2">
+              {r.other_variants.map((o) => (
+                <button key={o.variant} type="button" disabled={busy} onClick={() => recheck({ ...r.application, variant: o.variant, product: null })}
+                  className="rounded-[10px] border border-line px-3 py-2 text-left text-sm hover:border-brand">
+                  <b>{o.name}</b> <span className="text-muted">({o.product})</span>
+                  <span className="block text-[12px] text-muted">{o.needs_review.length ? `Review: ${o.needs_review.join(', ')}` : 'Every rule passes'}</span>
+                </button>
+              ))}
             </div>
           </section>
         )}

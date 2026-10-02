@@ -5,8 +5,10 @@ from . import config as C
 from .schemas import ApplicationIn, RuleCheck
 
 
-def inr(x: float) -> str:
+def inr(x: float | None) -> str:
     """Format rupees the Indian way: 1250000 -> ₹12,50,000."""
+    if x is None:
+        return "not given"
     neg, x = x < 0, abs(round(x))
     s = str(int(x))
     if len(s) > 3:

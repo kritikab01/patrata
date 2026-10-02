@@ -449,3 +449,101 @@ def test_kfs_shows_apr_above_headline_rate(client):
     r = client.post("/api/score", json=base()).json()
     k = client.get(f"/api/applications/{r['id']}/kfs").json()
     assert k["monthly_emi"] == "₹54,008" and float(k["apr_including_fee"].rstrip("%")) > 12.0
+
+
+# ---------------- Product book: product → variant → its own rules ----------------
+def prod(variant, **kw):
+    d = dict(request_id=uuid.uuid4().hex, age=38, no_of_dependents=1, income_annum=1_800_000, loan_amount=4_500_000,
+             loan_term=20, cibil_score=780, residential_assets_value=3_000_000, commercial_assets_value=0,
+             luxury_assets_value=1_500_000, bank_asset_value=800_000, existing_emi_monthly=0, annual_rate=9.0,
+             employment_type="salaried", years_in_job=8, variant=variant)
+    d.update(kw)
+    return d
+
+
+def test_catalogue_lists_products_and_variants(client):
+    b = client.get("/api/products").json()
+    assert [p["id"] for p in b["products"]] == ["personal", "home", "consumer", "vehicle"]
+    assert sum(len(p["variants"]) for p in b["products"]) == 9
+    assert all(v["sources"] for p in b["products"] for v in p["variants"])     # every variant cites where its numbers come from
+
+
+def test_home_loan_strong_applicant_is_approved(client):
+    r = client.post("/api/score", json=prod("hl_salaried", property_value=6_500_000)).json()
+    assert r["decision"] == "APPROVE" and r["variant_name"] == "Salaried home loan"
+    assert next(c for c in r["rule_checks"] if c["id"] == "ltv")["value"] == "69.2%"
+
+
+def test_home_loan_rbi_ltv_cap_and_fix(client):
+    r = client.post("/api/score", json=prod("hl_salaried", property_value=5_000_000)).json()   # 45L on 50L = 90% > 80% cap
+    ltv = next(c for c in r["rule_checks"] if c["id"] == "ltv")
+    assert r["decision"] == "DECLINE" and ltv["status"] == "fail" and "80%" in ltv["threshold"]
+    assert r["counterfactual"]["possible"] and r["counterfactual"]["loan_amount"] <= 4_000_000
+
+
+def test_age_at_maturity_is_checked(client):
+    r = client.post("/api/score", json=prod("hl_salaried", property_value=6_500_000, age=45)).json()   # ends at 65 > 60
+    assert next(c for c in r["rule_checks"] if c["id"] == "age_maturity")["status"] == "fail"
+    assert r["counterfactual"]["possible"] and r["counterfactual"]["loan_term"] <= 15
+
+
+def test_wrong_employment_type_suggests_the_right_variant(client):
+    r = client.post("/api/score", json=prod("pl_salaried", employment_type="self_employed", loan_amount=800_000,
+                                            loan_term=4, annual_rate=14)).json()
+    assert r["decision"] == "DECLINE"
+    assert any(o["variant"] == "pl_self_employed" for o in r["other_variants"])
+
+
+def test_flexi_hybrid_tests_affordability_on_the_full_emi(client):
+    r = client.post("/api/score", json=prod("pl_flexi_hybrid", loan_amount=800_000, loan_term=5, annual_rate=14)).json()
+    e = r["emi_detail"]
+    assert e["interest_only_months"] == 24 and e["starting_emi"] < e["emi"]
+    assert abs(r["emi_estimate"] - e["emi"]) < 1                    # burden uses the full EMI, not the low starting one
+
+
+def test_no_cost_emi_charges_zero_interest(client):
+    r = client.post("/api/score", json=prod("cd_no_cost", loan_amount=60_000, loan_term=1, asset_price=60_000,
+                                            income_annum=600_000)).json()
+    assert r["emi_detail"]["rate"] == 0 and abs(r["emi_estimate"] - 5_000) < 1
+
+
+def test_consumer_loan_decided_by_rules_when_model_does_not_apply(client):
+    r = client.post("/api/score", json=prod("cd_standard", loan_amount=50_000, loan_term=0.75, asset_price=60_000,
+                                            income_annum=480_000)).json()
+    assert r["approval_probability"] is None and r["approval_model_note"].startswith("Not used")
+    assert r["decision"] == "APPROVE"
+
+
+def test_two_wheeler_first_time_borrower_is_referred(client):
+    r = client.post("/api/score", json=prod("vl_two_wheeler", age=23, years_in_job=1, income_annum=300_000,
+                                            loan_amount=90_000, loan_term=3, asset_price=110_000, annual_rate=12,
+                                            cibil_score=None, no_credit_history=True,
+                                            residential_assets_value=0, luxury_assets_value=0)).json()
+    assert r["decision"] == "REFER" and "new_to_credit" in r["flags"]
+
+
+def test_minimum_income_and_tenure_limits(client):
+    r = client.post("/api/score", json=prod("vl_two_wheeler", income_annum=96_000, loan_amount=90_000, loan_term=3,
+                                            asset_price=110_000)).json()
+    assert next(c for c in r["rule_checks"] if c["id"] == "income")["status"] == "fail"
+    r = client.post("/api/score", json=prod("cd_standard", loan_amount=50_000, loan_term=3, asset_price=60_000)).json()
+    assert next(c for c in r["rule_checks"] if c["id"] == "tenure")["status"] == "fail"
+
+
+@pytest.mark.parametrize("kw,msg", [({"variant": "hl_salaried"}, "property value"), ({"variant": "zz_unknown"}, "Unknown loan variant"),
+                                    ({"variant": "vl_new_car", "product": "home"}, "belongs to")])
+def test_variant_validation(client, kw, msg):
+    r = client.post("/api/score", json={**prod("pl_salaried"), **kw})
+    assert r.status_code == 422 and msg in r.json()["errors"][0]["message"]
+
+
+def test_batch_accepts_product_rows(client):
+    row = {k: v for k, v in prod("vl_new_car", loan_amount=800_000, loan_term=5, asset_price=1_000_000).items() if k != "request_id"}
+    out = client.post("/api/batch", json={"rows": [row]}).json()
+    assert out["rows"][0]["valid"] and out["rows"][0]["decision"] in ("APPROVE", "REFER", "DECLINE")
+
+
+def test_assistant_knows_the_product_book():
+    from app import assistant as A
+    r = A.answer("Who can apply for a two-wheeler loan?")
+    assert r["sources"][0]["title"] == "Vehicle loan: Two-wheeler loan"

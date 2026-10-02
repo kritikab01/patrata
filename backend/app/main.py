@@ -134,6 +134,13 @@ def model_card():
     }
 
 
+@api.get("/products")
+def product_book():
+    """The product book: every product, variant, its criteria, and where each number comes from."""
+    from . import products
+    return products.book()
+
+
 @api.get("/stats")
 def stats(days: int = Query(14, ge=7, le=60)):
     return store.stats(days)

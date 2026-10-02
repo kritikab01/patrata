@@ -1,7 +1,7 @@
 """Combines policy rules and the model into one decision. The LLM is never called
 here: the decision is fully deterministic and reproducible."""
 from . import config as C
-from . import model, risk
+from . import model, products, risk
 from .rules import foir, inr, run_rules
 from .schemas import ApplicationIn, Counterfactual, RuleCheck
 
@@ -113,7 +113,108 @@ def counterfactual(app: ApplicationIn, decision: str, checks: list[RuleCheck]) -
         "A credit officer should review."))
 
 
+def decide_product(p: float | None, checks: list[RuleCheck]) -> tuple[str, list[str], list[str]]:
+    """Variant rules are the main gate. The approval model votes only when it was used (p is not None)."""
+    hard = [c for c in checks if c.status == "fail"]
+    soft = [c for c in checks if c.status == "refer"]
+    flags = []
+    if hard:
+        reasons = [f"{c.label}: {c.detail}" for c in hard]
+        if p is not None and p >= C.APPROVE_AT:
+            flags.append("model_policy_conflict")
+            reasons.append(f"The approval model alone would approve ({pct(p)}), but this variant's rules take priority.")
+        return "DECLINE", reasons, flags
+    if p is None:
+        if soft:
+            return "REFER", [f"{c.label}: {c.detail}" for c in soft], flags
+        return "APPROVE", ["Every check for this variant passes."], flags
+    if p >= C.APPROVE_AT and not soft:
+        return "APPROVE", [f"Every check for this variant passes and the approval model gives {pct(p)}."], flags
+    if p < C.DECLINE_BELOW and soft:
+        return "DECLINE", [f"{c.label}: {c.detail}" for c in soft] + [f"The approval model's likelihood is low ({pct(p)})."], flags
+    reasons = [f"{c.label}: {c.detail}" for c in soft]
+    if p >= C.APPROVE_AT and soft:
+        flags.append("model_policy_conflict")
+        reasons.append(f"The model would approve ({pct(p)}), but a check for this variant needs a human look.")
+    elif p < C.DECLINE_BELOW and not soft:
+        flags.append("model_policy_conflict")
+        reasons.append(f"Every check for this variant passes, but the approval model's likelihood is low ({pct(p)}).")
+    elif not reasons:
+        reasons.append(f"The approval model is unsure ({pct(p)}), so a credit officer should look.")
+    return "REFER", reasons, flags
+
+
+def counterfactual_product(app: ApplicationIn, v: dict, decision: str, checks: list[RuleCheck], model_used: bool) -> Counterfactual:
+    if decision == "APPROVE":
+        return Counterfactual(possible=True, loan_amount=app.loan_amount, loan_term=app.loan_term, summary="No change needed.")
+    fixed = {"employment": "this variant isn't offered for this employment type", "age": "the applicant is below the minimum age",
+             "income": "income is below this variant's minimum", "cibil": "the credit score needs a decision first",
+             "job_years": "job or business history needs checking first"}
+    for c in checks:
+        if c.id in fixed and c.status != "pass" and not (c.id == "cibil" and c.status == "refer" and app.cibil_score is None and False):
+            return Counterfactual(possible=False, summary=f"Changing the amount or tenure won't help: {fixed[c.id]}.")
+    crit = v["criteria"]
+    months = sorted(products.tenure_grid(v), key=lambda m: (abs(m - app.loan_term * 12), m))
+    cands = []
+    for f in [1.0 - 0.05 * k for k in range(15)]:
+        amt = round(app.loan_amount * f, -3)
+        if amt < crit["amount_min"]:
+            break
+        cands += [{"loan_amount": min(amt, crit["amount_max"]), "loan_term": m / 12} for m in months]
+    if not cands:
+        return Counterfactual(possible=False, summary="No smaller amount fits this variant's limits. A credit officer should review.")
+    probs = model.predict(app, cands) if model_used else [None] * len(cands)
+    risks = risk.probability(app, cands)
+    for cand, p, rp in zip(cands, probs, risks):
+        if model_used and p < C.APPROVE_AT:
+            continue
+        ch = products.evaluate(app, v, cand["loan_amount"], cand["loan_term"], risk_p=float(rp))
+        if all(c.status == "pass" for c in ch):
+            m = round(cand["loan_term"] * 12)
+            when = f"{m} months" if m < 36 else f"{cand['loan_term']:g} years"
+            same = cand["loan_amount"] == round(app.loan_amount, -3)
+            s = (f"Changing the tenure to {when} would clear every check." if same else
+                 f"Reducing the amount to {inr(cand['loan_amount'])} over {when} would clear every check.")
+            return Counterfactual(possible=True, loan_amount=cand["loan_amount"], loan_term=cand["loan_term"], summary=s)
+    return Counterfactual(possible=False, summary="No smaller amount or different tenure within this variant's limits clears every check. A credit officer should review.")
+
+
 def assess(app: ApplicationIn, with_counterfactual: bool = True) -> dict:
+    if app.variant:
+        return assess_product(app, with_counterfactual)
+    return assess_generic(app, with_counterfactual)
+
+
+def assess_product(app: ApplicationIn, with_counterfactual: bool = True) -> dict:
+    prod, v = products.get(app.variant)
+    ood = [] if app.no_credit_history else model.out_of_range(app)
+    model_used = not app.no_credit_history and not ood
+    p = float(model.predict(app)[0]) if model_used else None
+    note = None if model_used else ("Not used: no CIBIL score." if app.no_credit_history else
+                                    "Not used: this loan is outside the data the approval model learned from (" + ", ".join(ood) + ").")
+    checks = products.evaluate(app, v)
+    decision, reasons, flags = decide_product(p, checks)
+    if app.no_credit_history:
+        flags.append("new_to_credit")
+    if not model_used:
+        flags.append("approval_model_not_used")
+    e = products.emi_detail(app, v)
+    f = next(c for c in checks if c.id == "foir")
+    return {
+        "decision": decision, "approval_probability": None if p is None else round(p, 4), "reasons": reasons,
+        "rule_checks": checks, "drivers": model.drivers(app) if model_used else [],
+        "counterfactual": (counterfactual_product(app, v, decision, checks, model_used) if with_counterfactual
+                           else Counterfactual(possible=False, summary="")),
+        "flags": flags, "emi_estimate": round(e["emi"], 2),
+        "repayment_risk": risk.assess(app),
+        "foir": round(float(f.value.rstrip("%")) / 100, 4),
+        "product_name": prod["name"], "variant_name": v["name"], "approval_model_note": note,
+        "other_variants": products.matching_variants(app, exclude=v["id"]) if with_counterfactual and decision != "APPROVE" else [],
+        "emi_detail": {k: round(val, 2) if isinstance(val, float) else val for k, val in e.items()},
+    }
+
+
+def assess_generic(app: ApplicationIn, with_counterfactual: bool = True) -> dict:
     ntc = app.no_credit_history
     p = None if ntc else float(model.predict(app)[0])
     checks = run_rules(app)

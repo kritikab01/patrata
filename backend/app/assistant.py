@@ -62,6 +62,10 @@ EVAL = [
     ("Are there charges for closing my loan early?", "Prepayment and foreclosure"),
     ("I have no credit history, can I get a loan?", "New to credit borrowers"),
     ("Does changing jobs affect my loan?", "Employment and job stability"),
+    ("Who can apply for a two-wheeler loan?", "Vehicle loan: Two-wheeler loan"),
+    ("What is a Flexi Hybrid personal loan?", "Personal loan: Flexi Hybrid personal loan"),
+    ("No-cost EMI eligibility", "Consumer durable loan: No-cost EMI"),
+    ("Self-employed home loan age limit", "Home loan: Self-employed home loan"),
 ]
 
 
@@ -94,6 +98,9 @@ def index():
         text = "\n".join(l for l in lines if not l.startswith("Keywords:")).strip()
         chunks.append({"title": title.strip(), "text": text,
                        "tokens": _tokens(f"{title} {title} {text} {keys} {keys}")})
+    from .products import knowledge_chunks
+    for k in knowledge_chunks():
+        chunks.append({"title": k["title"], "text": k["text"], "tokens": _tokens(f"{k['title']} {k['title']} {k['text']} {k['keys']}")})
     n = len(chunks)
     df = Counter(t for ch in chunks for t in set(ch["tokens"]))
     idf = {t: math.log(1 + (n - d + 0.5) / (d + 0.5)) for t, d in df.items()}
@@ -199,7 +206,7 @@ def answer(question: str, history: list[dict] | None = None, lang: str = "en", l
         return {**base, "answer": "I couldn't reach the AI service just now. Try again in a moment.", "source": "guard", "kind": "guard"}
     if not text or "OUT_OF_SCOPE" in text:
         return {**base, "answer": off, "source": "guard", "kind": "guard"}
-    if calc and not X.numbers_ok(text, {"calc": calc, "src": [s["text"] for s in sources]}):
+    if calc and not X.numbers_ok(text, {"calc": calc}):   # calculator answers must use the calculator's own figures
         return {**base, "answer": calc_text(calc), "source": "calculator", "kind": "calculator", "calc": calc}
     used = sorted({int(n) for n in re.findall(r"\[(\d+)\]", text) if 0 < int(n) <= len(cites)})
     kind = "calculator" if calc else "general" if (not used or text.lstrip().lower().startswith("general guidance")) else "grounded"

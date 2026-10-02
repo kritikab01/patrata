@@ -161,6 +161,11 @@ def stats(days: int = 14) -> dict:
         if r["review"]:
             reviewed += 1
             overrides += r["review"]["final_decision"] != r["decision"] and r["decision"] != "REFER"
+    prod = defaultdict(lambda: Counter())
+    for r in rows:
+        prod[r.get("product_name") or "No product chosen"][r["decision"]] += 1
+    by_product = [{"product": k, "total": sum(v.values()), "approve": v["APPROVE"], "refer": v["REFER"], "decline": v["DECLINE"]}
+                  for k, v in sorted(prod.items(), key=lambda kv: -sum(kv[1].values()))]
     band_rows = []
     for b in ["300-549", "550-599", "600-649", "650-699", "700-749", "750-900"]:
         n = sum(bands[b].values())
@@ -178,4 +183,5 @@ def stats(days: int = 14) -> dict:
         "daily": [{"date": k, **v} for k, v in daily.items()],
         "attention_reasons": [{"reason": k, "count": v} for k, v in reasons.most_common(6)],
         "cibil_bands": band_rows,
+        "by_product": by_product,
     }

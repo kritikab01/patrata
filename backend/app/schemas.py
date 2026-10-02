@@ -14,20 +14,37 @@ class ApplicationIn(BaseModel):
     no_of_dependents: int = Field(0, ge=0, le=10)
     income_annum: float = Field(..., gt=0, le=1_000_000_000, description="Annual income in ₹")
     loan_amount: float = Field(..., gt=0, le=1_000_000_000, description="Requested amount in ₹")
-    loan_term: int = Field(..., ge=1, le=30, description="Term in years")
+    loan_term: float = Field(..., ge=0.25, le=30, description="Term in years (0.5 = 6 months)")
     cibil_score: Optional[int] = Field(None, ge=300, le=900)
     no_credit_history: bool = Field(False, description="First-time borrower with no CIBIL score")
+    product: Optional[str] = Field(None, description="personal, home, consumer or vehicle")
+    variant: Optional[str] = Field(None, description="A variant id from the product book")
+    property_value: Optional[float] = Field(None, gt=0, le=10_000_000_000, description="Home loans: property value in ₹")
+    asset_price: Optional[float] = Field(None, gt=0, le=1_000_000_000, description="Vehicle or product price in ₹")
     residential_assets_value: float = Field(0, ge=0)
     commercial_assets_value: float = Field(0, ge=0)
     luxury_assets_value: float = Field(0, ge=0)
     bank_asset_value: float = Field(0, ge=0)
     existing_emi_monthly: float = Field(0, ge=0, description="Current EMIs per month in ₹")
-    annual_rate: float = Field(12.0, ge=1, le=36, description="Assumed interest rate % p.a.")
+    annual_rate: float = Field(12.0, ge=0, le=36, description="Interest rate % p.a. (0 for no-cost EMI)")
     employment_type: Literal["salaried", "self_employed", "government", "pensioner", "not_employed"] = "salaried"
     years_in_job: float = Field(3.0, ge=0, le=50, description="Years in current job or business")
 
     @model_validator(mode="after")
     def cross_checks(self):
+        if self.variant:
+            from .products import get
+            found = get(self.variant)
+            if not found:
+                raise ValueError("Unknown loan variant. Choose one from the product catalogue.")
+            prod, v = found
+            if self.product and self.product != prod["id"]:
+                raise ValueError(f"{v['name']} belongs to {prod['name']}, not the product chosen.")
+            self.product = prod["id"]
+            if v["criteria"].get("ltv") == "rbi_home" and not self.property_value:
+                raise ValueError("Enter the property value. Home loans are capped at a share of it (RBI).")
+            if v["criteria"].get("ltv") == "asset" and not self.asset_price:
+                raise ValueError("Enter the price of the vehicle or product.")
         if self.no_credit_history:
             self.cibil_score = None
         elif self.cibil_score is None:
@@ -61,7 +78,7 @@ class Driver(BaseModel):
 class Counterfactual(BaseModel):
     possible: bool
     loan_amount: Optional[float] = None
-    loan_term: Optional[int] = None
+    loan_term: Optional[float] = None
     summary: str
 
 
@@ -82,6 +99,11 @@ class DecisionOut(BaseModel):
     application: dict = {}
     sample: bool = False
     repayment_risk: dict = {}
+    product_name: Optional[str] = None
+    variant_name: Optional[str] = None
+    approval_model_note: Optional[str] = None
+    other_variants: list[dict] = []
+    emi_detail: Optional[dict] = None
     review: Optional[dict] = None
     status: str = ""
 

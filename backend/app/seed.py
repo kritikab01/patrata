@@ -21,27 +21,42 @@ REVIEW_NOTES = {
 }
 
 
+VARIANT_MIX = [("hl_salaried", 18), ("hl_self_employed", 7), ("pl_salaried", 20), ("pl_self_employed", 8),
+               ("pl_flexi_hybrid", 7), ("cd_standard", 12), ("cd_no_cost", 8), ("vl_new_car", 12), ("vl_two_wheeler", 8)]
+
+
 def _applicant(rng: random.Random) -> dict:
-    income = round(rng.lognormvariate(14.2, 0.55), -4)             # median ~₹14.7 lakh
-    income = min(max(income, 300_000), 9_500_000)
-    term = rng.choice([5, 8, 10, 12, 15, 15, 20, 20])
-    age = rng.randint(23, min(58, 75 - term))
-    cibil = int(min(900, max(320, rng.gauss(728, 72))))
-    emi_share = rng.choice([0, 0, 0, 0, 0.05, 0.1, 0.18, 0.25])
-    loan = round(income * rng.uniform(1.5, 3.0), -4)
-    return {
-        "age": age, "no_of_dependents": rng.randint(0, 4), "income_annum": income,
-        "loan_amount": loan, "loan_term": term, "cibil_score": cibil,
-        "residential_assets_value": round(income * rng.uniform(0, 3.5), -4),
-        "commercial_assets_value": round(income * rng.choice([0, 0, 0.5, 1.2]), -4),
-        "luxury_assets_value": round(income * rng.uniform(0.3, 2.5), -4),
-        "bank_asset_value": round(income * rng.uniform(0.2, 1.2), -4),
-        "existing_emi_monthly": round(income / 12 * emi_share, -2), "annual_rate": rng.choice([10.5, 11.5, 12, 13]),
-        "employment_type": rng.choices(["salaried", "self_employed", "government", "pensioner", "not_employed"],
-                                       [55, 25, 12, 5, 3])[0],
-        "years_in_job": round(min(age - 18, rng.choice([0.5, 1, 2, 3, 5, 8, 12])), 1),
-        "no_credit_history": rng.random() < 0.05,
-    }
+    """A realistic applicant for a randomly chosen product variant."""
+    variant = rng.choices([v for v, _ in VARIANT_MIX], [w for _, w in VARIANT_MIX])[0]
+    se = variant.endswith("self_employed") or (variant.startswith("vl_") and rng.random() < 0.3)
+    emp = "self_employed" if se else rng.choices(["salaried", "government"], [80, 20])[0]
+    if variant.startswith("cd_") and rng.random() < 0.1:
+        emp = "pensioner"
+    income = round(min(max(rng.lognormvariate(13.9, 0.55), 180_000), 9_500_000), -4)
+    age = rng.randint(23, 55)
+    cibil = int(min(900, max(320, rng.gauss(730, 70))))
+    d = {"age": age, "no_of_dependents": rng.randint(0, 4), "income_annum": income, "cibil_score": cibil,
+         "employment_type": emp, "years_in_job": round(min(age - 20, rng.choice([0.5, 1, 2, 3, 5, 8, 12])), 1),
+         "existing_emi_monthly": round(income / 12 * rng.choice([0, 0, 0, 0.05, 0.1, 0.18, 0.25]), -2),
+         "residential_assets_value": round(income * rng.uniform(0, 3), -4), "commercial_assets_value": 0,
+         "luxury_assets_value": round(income * rng.uniform(0.2, 1.5), -4), "bank_asset_value": round(income * rng.uniform(0.1, 1), -4),
+         "no_credit_history": rng.random() < 0.05, "variant": variant}
+    if variant.startswith("hl_"):
+        prop = round(income * rng.uniform(2.5, 6), -5)
+        d.update(property_value=prop, loan_amount=round(prop * rng.uniform(0.6, 0.88), -4), loan_term=rng.choice([15, 20, 20, 25]), annual_rate=rng.choice([8.5, 9, 9.5]))
+        d["loan_term"] = min(d["loan_term"], (70 if se else 60) - age) if (70 if se else 60) - age >= 5 else 5
+    elif variant.startswith("pl_"):
+        d.update(loan_amount=round(income * rng.uniform(0.3, 1.2), -4), loan_term=rng.choice([3, 4, 5]) if variant != "pl_flexi_hybrid" else rng.choice([4, 5, 6]),
+                 annual_rate=rng.choice([11.5, 13, 14.5, 16]))
+    elif variant.startswith("cd_"):
+        price = round(rng.uniform(15_000, 140_000), -3)
+        d.update(asset_price=price, loan_amount=round(price * rng.uniform(0.8, 1.0), -3),
+                 loan_term=rng.choice([0.5, 0.75, 1]) if variant == "cd_no_cost" else rng.choice([0.5, 1, 1.5, 2]), annual_rate=rng.choice([16, 18, 20]))
+    else:
+        price = round(rng.uniform(600_000, 2_000_000), -4) if variant == "vl_new_car" else round(rng.uniform(70_000, 250_000), -3)
+        d.update(asset_price=price, loan_amount=round(price * rng.uniform(0.7, 0.92), -3),
+                 loan_term=rng.choice([3, 4, 5, 7]) if variant == "vl_new_car" else rng.choice([1, 2, 3]), annual_rate=rng.choice([9, 10, 12]))
+    return d
 
 
 def seed(n: int = 90, force: bool = False) -> int:

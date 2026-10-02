@@ -149,8 +149,9 @@ def review(r: dict, llm=X.call_llm) -> dict:
     from . import config as C
     if not C.LLM_API_KEY and llm is X.call_llm:
         return scripted(r)
-    case = {**X.build_facts(r), "application": {k: (inr(v) if "value" in k or k in ("income_annum", "loan_amount", "existing_emi_monthly") else v)
-                                                for k, v in r["application"].items()}}
+    money = ("income_annum", "loan_amount", "existing_emi_monthly", "property_value", "asset_price")
+    case = {**X.build_facts(r), "application": {k: (inr(v) if "value" in k or k in money else v)
+                                                for k, v in r["application"].items() if v is not None}}
     steps, notes = [], []
     for _ in range(MAX_STEPS + 1):
         payload = {"tools": TOOLS, "case": case,

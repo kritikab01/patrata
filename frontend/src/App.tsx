@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import { Bot, ClipboardCheck, FilePlus2, FolderKanban, Gauge, Layers, MoreHorizontal, ShieldCheck, X } from 'lucide-react'
+import { BookOpen, Bot, ClipboardCheck, FilePlus2, FolderKanban, Gauge, Layers, MoreHorizontal, ShieldCheck, X } from 'lucide-react'
 import { api } from './lib/api'
 import { cx } from './components/ui'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -12,10 +12,12 @@ import Reviews from './pages/Reviews'
 import Batch from './pages/Batch'
 import Assistant from './pages/Assistant'
 import ModelCard from './pages/ModelCard'
+import Products from './pages/Products'
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: Gauge, end: true },
   { to: '/new', label: 'New application', icon: FilePlus2 },
+  { to: '/products', label: 'Product catalogue', icon: BookOpen },
   { to: '/cases', label: 'Applications', icon: FolderKanban },
   { to: '/reviews', label: 'Review queue', icon: ClipboardCheck, badge: true },
   { to: '/batch', label: 'Batch screening', icon: Layers },
@@ -101,6 +103,7 @@ export default function App() {
             <Route path="/batch" element={<Batch />} />
             <Route path="/assistant" element={<Assistant />} />
             <Route path="/model" element={<ModelCard />} />
+            <Route path="/products" element={<Products />} />
             <Route path="*" element={<div className="py-20 text-center"><p className="text-lg font-semibold">Page not found</p><NavLink className="mt-3 inline-block underline" to="/">Go to the dashboard</NavLink></div>} />
           </Routes>
           </ErrorBoundary>

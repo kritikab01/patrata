@@ -4,6 +4,7 @@ import { api, ApiError } from '../lib/api'
 import type { Explanation, Lang, Result, Simulation } from '../lib/types'
 import { inr, pct, STAMP, when, WORD } from '../lib/format'
 import { canSpeak, speak, stopSpeaking, useVoiceInput } from '../lib/speech'
+import { findVariant, useBook } from '../lib/products'
 import { Button, Card, CardTitle, CheckPill, cx, DecisionPill, FoirMeter, LangSwitch, MicButton, Notice, Skeleton, useDebounced } from './ui'
 
 /* ---------- Status tracker (like order tracking in delivery apps) ---------- */
@@ -102,6 +103,8 @@ export function Change({ r, onApply, busy }: { r: Result; onApply: () => void; b
 /* ---------- What-if simulator ---------- */
 export function WhatIf({ r, onSave, busy }: { r: Result; onSave: (a: Result['application']) => void; busy: boolean }) {
   const a = r.application
+  const book = useBook()
+  const vc = findVariant(book, a.variant)?.v.criteria
   const [amt, setAmt] = useState(a.loan_amount)
   const [term, setTerm] = useState(a.loan_term)
   const [cibil, setCibil] = useState<number | null>(a.cibil_score)
@@ -130,7 +133,9 @@ export function WhatIf({ r, onSave, busy }: { r: Result; onSave: (a: Result['app
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-4">
           {slider('Loan amount', amt, setAmt, Math.round(a.loan_amount * 0.3 / 10000) * 10000, Math.round(a.loan_amount * 1.5 / 10000) * 10000, 10000, inr)}
-          {slider('Term', term, setTerm, 2, 20, 1, (n) => `${n} years`)}
+          {vc ? slider('Term', Math.round(term * 12), (m) => setTerm(m / 12), vc.tenure_months_min, vc.tenure_months_max, vc.tenure_months_max <= 48 ? 3 : 12,
+              (m) => (m < 36 ? `${m} months` : `${+(m / 12).toFixed(1)} years`))
+            : slider('Term', term, setTerm, 2, 20, 1, (n) => `${n} years`)}
           {a.cibil_score != null && slider('CIBIL score', cibil ?? 700, setCibil, 300, 900, 5, String)}
           {slider('Existing EMIs', emi, setEmi, 0, Math.max(maxEmi, a.existing_emi_monthly), 500, inr)}
         </div>

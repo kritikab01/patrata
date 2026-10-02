@@ -5,7 +5,7 @@ import { Card, CardTitle, Kpi, PageHead, Skeleton } from '../components/ui'
 
 const STACK = [
   ['Machine learning', 'Two XGBoost models with monotone constraints and SHAP: approval (4,269 Indian applications) and repayment risk (307,511 real loans)'],
-  ['Backend', 'FastAPI with Pydantic validation, SQLite audit log, 61 automated tests'],
+  ['Backend', 'FastAPI with Pydantic validation, SQLite audit log, 76 automated tests'],
   ['Generative AI', 'Llama 3.3 70B on Groq (free tier) for explanations and the assistant; Gemini, OpenAI, OpenRouter or local Ollama with one setting'],
   ['Retrieval', 'BM25 search over Patrata\'s policy notes, with cited answers'],
   ['AI agent', 'Review Agent: the LLM plans tool calls (re-score, policy lookup, loan cost) in a guarded loop and drafts a memo; a person decides'],

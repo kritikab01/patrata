@@ -1,29 +1,31 @@
 import type { Application } from './types'
 
 export type Kind = 'inr' | 'int' | 'dec' | 'select'
-export interface FieldDef { id: keyof Application; label: string; step: number; kind: Kind; suffix?: string; hint?: string; wide?: boolean; options?: [string, string][] }
+export interface FieldDef { id: keyof Application; label: string; step: number; kind: Kind; suffix?: string; hint?: string; wide?: boolean; options?: [string, string][]; when?: 'property' | 'price' }
 
 export const EMPLOYMENT: [string, string][] = [
   ['salaried', 'Salaried (private job)'], ['self_employed', 'Self-employed or business'], ['government', 'Government employee'],
   ['pensioner', 'Pensioner'], ['not_employed', 'Not currently employed'],
 ]
 
-export const STEPS = ['Applicant and income', 'The loan', 'Credit and assets']
+export const STEPS = ['Product', 'Applicant and income', 'The loan', 'Credit and assets']
 export const FIELDS: FieldDef[] = [
-  { id: 'age', label: 'Age', step: 0, kind: 'int', suffix: 'years', hint: '18 to 75' },
-  { id: 'no_of_dependents', label: 'Dependents', step: 0, kind: 'int', hint: 'People relying on this income' },
-  { id: 'employment_type', label: 'Employment', step: 0, kind: 'select', options: EMPLOYMENT },
-  { id: 'years_in_job', label: 'Years in current job', step: 0, kind: 'dec', suffix: 'years', hint: 'Or years running the business' },
-  { id: 'income_annum', label: 'Annual income', step: 0, kind: 'inr', wide: true },
-  { id: 'existing_emi_monthly', label: 'Existing EMIs per month', step: 0, kind: 'inr', wide: true, hint: 'Enter 0 if none' },
-  { id: 'loan_amount', label: 'Loan amount', step: 1, kind: 'inr', wide: true },
-  { id: 'loan_term', label: 'Term', step: 1, kind: 'int', suffix: 'years', hint: '2 to 20 years' },
-  { id: 'annual_rate', label: 'Interest rate', step: 1, kind: 'dec', suffix: '% p.a.', hint: 'Only used to estimate the EMI' },
-  { id: 'cibil_score', label: 'CIBIL score', step: 2, kind: 'int', wide: true, hint: '300 to 900' },
-  { id: 'residential_assets_value', label: 'Residential property', step: 2, kind: 'inr' },
-  { id: 'commercial_assets_value', label: 'Commercial property', step: 2, kind: 'inr' },
-  { id: 'luxury_assets_value', label: 'Vehicles and valuables', step: 2, kind: 'inr' },
-  { id: 'bank_asset_value', label: 'Bank balance and deposits', step: 2, kind: 'inr' },
+  { id: 'age', label: 'Age', step: 1, kind: 'int', suffix: 'years', hint: '18 to 75' },
+  { id: 'no_of_dependents', label: 'Dependents', step: 1, kind: 'int', hint: 'People relying on this income' },
+  { id: 'employment_type', label: 'Employment', step: 1, kind: 'select', options: EMPLOYMENT },
+  { id: 'years_in_job', label: 'Years in current job', step: 1, kind: 'dec', suffix: 'years', hint: 'Or years running the business' },
+  { id: 'income_annum', label: 'Annual income', step: 1, kind: 'inr', wide: true },
+  { id: 'existing_emi_monthly', label: 'Existing EMIs per month', step: 1, kind: 'inr', wide: true, hint: 'Enter 0 if none' },
+  { id: 'loan_amount', label: 'Loan amount', step: 2, kind: 'inr', wide: true },
+  { id: 'property_value', label: 'Property value', step: 2, kind: 'inr', wide: true, when: 'property', hint: 'RBI caps the loan at a share of this' },
+  { id: 'asset_price', label: 'Price', step: 2, kind: 'inr', wide: true, when: 'price' },
+  { id: 'loan_term', label: 'Term', step: 2, kind: 'dec', suffix: 'years' },
+  { id: 'annual_rate', label: 'Interest rate', step: 2, kind: 'dec', suffix: '% p.a.', hint: 'Only used to estimate the EMI' },
+  { id: 'cibil_score', label: 'CIBIL score', step: 3, kind: 'int', wide: true, hint: '300 to 900' },
+  { id: 'residential_assets_value', label: 'Residential property', step: 3, kind: 'inr' },
+  { id: 'commercial_assets_value', label: 'Commercial property', step: 3, kind: 'inr' },
+  { id: 'luxury_assets_value', label: 'Vehicles and valuables', step: 3, kind: 'inr' },
+  { id: 'bank_asset_value', label: 'Bank balance and deposits', step: 3, kind: 'inr' },
 ]
 
 export const BASE: Application = {
@@ -34,13 +36,13 @@ export const BASE: Application = {
 }
 
 export const EXAMPLES: { name: string; note: string; data: Application }[] = [
-  { name: 'Strong applicant', note: 'Salaried 8 yrs, CIBIL 780', data: { ...BASE } },
-  { name: 'High EMI burden', note: 'Existing EMIs ₹40,000', data: { ...BASE, existing_emi_monthly: 40000 } },
-  { name: 'Young, new job', note: '24, six months in job', data: { ...BASE, age: 24, years_in_job: 0.5, loan_term: 10, residential_assets_value: 0, luxury_assets_value: 0 } },
-  { name: 'Borderline CIBIL', note: 'Score 650', data: { ...BASE, cibil_score: 650 } },
-  { name: 'Low CIBIL', note: 'Score 520', data: { ...BASE, cibil_score: 520 } },
-  { name: 'First-time borrower', note: 'No credit history yet', data: { ...BASE, age: 27, years_in_job: 3, loan_amount: 1500000, loan_term: 10, cibil_score: null, no_credit_history: true } },
-  { name: 'Unusual applicant', note: 'Earns ₹3 crore a year', data: { ...BASE, income_annum: 30000000, loan_amount: 6000000 } },
+  { name: 'Home loan, strong', note: '₹45 L on a ₹65 L flat', data: { ...BASE, loan_term: 20, annual_rate: 9, variant: 'hl_salaried', property_value: 6500000 } },
+  { name: 'Home loan, low down payment', note: '₹45 L on a ₹50 L flat', data: { ...BASE, loan_term: 20, annual_rate: 9, variant: 'hl_salaried', property_value: 5000000 } },
+  { name: 'Personal loan, high EMIs', note: 'Existing EMIs ₹30,000', data: { ...BASE, income_annum: 1200000, loan_amount: 800000, loan_term: 4, annual_rate: 14, existing_emi_monthly: 30000, variant: 'pl_salaried' } },
+  { name: 'Flexi Hybrid', note: 'Interest-only for 24 months', data: { ...BASE, loan_amount: 800000, loan_term: 5, annual_rate: 14, variant: 'pl_flexi_hybrid' } },
+  { name: 'Phone on no-cost EMI', note: '₹60,000 over 12 months', data: { ...BASE, income_annum: 600000, loan_amount: 60000, loan_term: 1, annual_rate: 0, variant: 'cd_no_cost', asset_price: 60000 } },
+  { name: 'First bike, no CIBIL', note: 'Age 23, first job', data: { ...BASE, age: 23, years_in_job: 1, income_annum: 300000, loan_amount: 90000, loan_term: 3, annual_rate: 12, cibil_score: null, no_credit_history: true, residential_assets_value: 0, luxury_assets_value: 0, variant: 'vl_two_wheeler', asset_price: 110000 } },
+  { name: 'Wrong variant chosen', note: 'Self-employed on a salaried PL', data: { ...BASE, employment_type: 'self_employed', loan_amount: 800000, loan_term: 4, annual_rate: 14, variant: 'pl_salaried' } },
 ]
 
-export const CSV_COLUMNS: string[] = ['ref', ...FIELDS.map((f) => f.id as string)]
+export const CSV_COLUMNS: string[] = ['ref', 'variant', ...FIELDS.map((f) => f.id as string)]

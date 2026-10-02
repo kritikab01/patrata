@@ -14,6 +14,7 @@ would get it approved, and a human review workflow on top.
 
 | Area | Features |
 |---|---|
+| Product book | 4 products, 9 variants (personal, home, consumer durable, vehicle), each with its own rules from lenders' published criteria and RBI caps; catalogue page with sources |
 | Two models | Approval model (4,269 Indian applications) plus repayment-risk model (307,499 real Home Credit loans) |
 | Dashboard | KPIs, decisions per day, why cases need attention, approval by CIBIL band, recent cases |
 | New application | Example applicants, 3-step form with Indian number formatting, live affordability preview (EMI, EMI-burden and CIBIL meters) |
@@ -29,7 +30,9 @@ would get it approved, and a human review workflow on top.
 ```
 frontend/  React + TypeScript + Tailwind + Recharts  ──build──▶  backend/static/
 backend/   FastAPI  ──▶ /api/...   (scoring, simulate, batch, reviews, stats, explain, ask, assistant)
-            ├─ rules.py      policy checks (age, CIBIL, FOIR) — deterministic
+            ├─ products.json the product book: 9 variants and their rules, with sources
+            ├─ products.py   runs a variant's rules (age at maturity, income, CIBIL, FOIR, limits, LTV)
+            ├─ rules.py      generic policy checks when no product is chosen
             ├─ model.py      XGBoost + TreeSHAP drivers + out-of-range guard
             ├─ policy.py     rules + probability → decision, counterfactual search
             ├─ explain.py    LLM explanations (Groq by default) with number verification + template fallback
@@ -85,7 +88,7 @@ source .venv/bin/activate
 uv pip install -r requirements-dev.txt
 cp .env.example .env                  # paste your Groq key into .env
 
-pytest -q                             # 61 tests, each mapped to an evaluation question
+pytest -q                             # 76 tests, each mapped to an evaluation question
 uvicorn app.main:app --reload         # app at http://127.0.0.1:8000, API docs at /docs
 ```
 
@@ -125,6 +128,7 @@ Without a key the app still works and uses template explanations.
 | POST | `/api/simulate` | What-if scoring; nothing is saved |
 | POST | `/api/batch` | Score up to 500 applications |
 | GET | `/api/stats` | Dashboard figures |
+| GET | `/api/products` | The product book: products, variants, criteria, sources |
 | POST | `/api/assistant` | Policy assistant with cited sources |
 
 ## Deploy (automatic, free)
@@ -150,6 +154,8 @@ It opens full-screen with its own icon, like any installed app.
 
 - [`docs/DATA_AND_MODEL.md`](docs/DATA_AND_MODEL.md): dataset, features, training pipeline, retraining, swapping data
 - [`docs/DESIGN.md`](docs/DESIGN.md): design system (Vault structure, UPI Blue accent, Receipt slip)
+- [`docs/PRODUCT_BOOK.md`](docs/PRODUCT_BOOK.md): every product and variant, its rules and sources (generated from `products.json`)
+- [`docs/WHAT_CHANGED.md`](docs/WHAT_CHANGED.md): plain-language summary of the product and variant upgrade
 
 ## Evaluation map
 

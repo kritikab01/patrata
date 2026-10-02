@@ -11,6 +11,7 @@ export interface Application {
   cibil_score: number | null; residential_assets_value: number; commercial_assets_value: number
   luxury_assets_value: number; bank_asset_value: number; existing_emi_monthly: number; annual_rate: number
   employment_type: string; years_in_job: number; no_credit_history?: boolean
+  product?: string | null; variant?: string | null; property_value?: number | null; asset_price?: number | null
 }
 
 export interface Result {
@@ -19,6 +20,9 @@ export interface Result {
   warnings: string[]; emi_estimate: number; foir: number; model_version: string; created_at: string
   application: Application; sample: boolean; review: Review | null; status: string
   repayment_risk: RepaymentRisk
+  product_name?: string | null; variant_name?: string | null; approval_model_note?: string | null
+  other_variants?: { variant: string; name: string; product: string; needs_review: string[] }[]
+  emi_detail?: { emi: number; starting_emi?: number; interest_only_months?: number; rate: number } | null
 }
 
 export interface RepaymentRisk {

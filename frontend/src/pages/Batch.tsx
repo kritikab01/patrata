@@ -32,14 +32,16 @@ function sampleBatch(): Record<string, string>[] {
   return Array.from({ length: 24 }, (_, i) => {
     const income = Math.round((4 + rnd() * 40) * 1e5 / 1e4) * 1e4
     const r: Record<string, number | string | boolean | null> = {
-      ref: `LEAD-${1001 + i}`, ...BASE, income_annum: income, loan_amount: Math.round(income * (1.2 + rnd() * 1.6) / 1e4) * 1e4,
-      loan_term: [8, 10, 12, 15, 15, 20][Math.floor(rnd() * 6)], cibil_score: Math.round(560 + rnd() * 330),
+      ref: `LEAD-${1001 + i}`, ...BASE, income_annum: income,
+      ...(i % 3 === 2 ? { loan_amount: Math.round(income * (1.2 + rnd() * 1.6) / 1e4) * 1e4 } : {}),
+      ...(i % 3 === 0 ? { variant: 'pl_salaried', loan_amount: Math.round(income * 0.5 / 1e4) * 1e4, annual_rate: 14 } : i % 3 === 1 ? { variant: 'vl_new_car', asset_price: Math.round(income * 1.4 / 1e4) * 1e4, loan_amount: Math.round(income * 1.1 / 1e4) * 1e4 } : {}),
+      loan_term: i % 3 === 2 ? [8, 10, 12, 15, 15, 20][Math.floor(rnd() * 6)] : [3, 4, 5][Math.floor(rnd() * 3)], cibil_score: Math.round(560 + rnd() * 330),
       employment_type: ['salaried', 'salaried', 'self_employed', 'government'][Math.floor(rnd() * 4)], years_in_job: 1 + Math.floor(rnd() * 12),
       existing_emi_monthly: rnd() < 0.6 ? 0 : Math.round(income / 12 * rnd() * 0.2 / 100) * 100,
       age: 30 + Math.floor(rnd() * 25), residential_assets_value: Math.round(income * rnd() * 3 / 1e4) * 1e4,
     }
     if (i === 17) r.cibil_score = 1200          // one deliberately bad row, to show validation
-    return Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v)]))
+    return Object.fromEntries(Object.entries(r).filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => [k, String(v)]))
   })
 }
 
@@ -52,7 +54,7 @@ export default function Batch() {
   const [filter, setFilter] = useState<'all' | Decision | 'INVALID'>('all')
   const file = useRef<HTMLInputElement>(null)
 
-  const missing = useMemo(() => rows && rows.length ? CSV_COLUMNS.filter((c) => c !== 'ref' && !(c in rows[0])) : [], [rows])
+  const missing = useMemo(() => rows && rows.length ? CSV_COLUMNS.filter((c) => !['ref', 'variant', 'property_value', 'asset_price'].includes(c) && !(c in rows[0])) : [], [rows])
 
   function onFile(f: File) {
     setOut(null); setErr('')
@@ -67,7 +69,7 @@ export default function Batch() {
     if (!rows) return
     setBusy(true); setErr('')
     try {
-      const payload = rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, k === 'ref' || k === 'employment_type' ? v || 'salaried' : v === '' ? null : Number(v.replace(/,/g, ''))])))
+      const payload = rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, k === 'ref' || k === 'variant' ? v || null : k === 'employment_type' ? v || 'salaried' : v === '' ? null : Number(v.replace(/,/g, ''))])))
       setOut(await api<Out>('/batch', { json: { rows: payload } }))
     } catch { setErr('Scoring failed. Check the file and try again.') } finally { setBusy(false) }
   }
@@ -88,7 +90,7 @@ export default function Batch() {
         <Card>
           <CardTitle sub="Columns the file must have">1. Get the template</CardTitle>
           <p className="mb-4 text-sm text-muted">One row per applicant. Amounts in rupees, no symbols. The <code>ref</code> column is your own reference, such as a lead ID.</p>
-          <Button kind="ghost" onClick={() => download('patrata-template.csv', toCsv([CSV_COLUMNS, ['LEAD-0001', ...CSV_COLUMNS.slice(1).map((c) => (BASE as any)[c])]]))}><FileSpreadsheet size={17} />Download template</Button>
+          <Button kind="ghost" onClick={() => download('patrata-template.csv', toCsv([CSV_COLUMNS, ['LEAD-0001', 'pl_salaried', ...CSV_COLUMNS.slice(2).map((c) => (BASE as any)[c] ?? '')]]))}><FileSpreadsheet size={17} />Download template</Button>
         </Card>
         <Card>
           <CardTitle sub={name ? `${name}, ${rows?.length} rows` : 'CSV file, up to 500 rows'}>2. Add applications</CardTitle>

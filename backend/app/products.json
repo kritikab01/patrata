@@ -1,0 +1,232 @@
+{
+  "version": "2026-10-02",
+  "note": "Indicative criteria compiled from lenders' published eligibility pages and RBI rules. Each lender's real policy differs; values marked as assumptions are Patrata's own policy choices where no single published figure exists.",
+  "products": [
+    {
+      "id": "personal", "name": "Personal loan", "secured": false,
+      "summary": "Unsecured loan for any purpose. Decided mainly on income, job stability, credit score and existing EMIs.",
+      "variants": [
+        {
+          "id": "pl_salaried", "name": "Salaried personal loan",
+          "for": "Salaried and government employees who need a fixed EMI loan.",
+          "features": ["Fixed EMI from the first month", "No collateral", "Tenure up to 5 years"],
+          "criteria": {
+            "employment": ["salaried", "government"],
+            "age_min": 21, "age_max_at_maturity": 60,
+            "min_monthly_income": 25000, "min_years_in_job": 1,
+            "cibil_min": 650, "cibil_clear": 700,
+            "foir_clear": 0.50, "foir_max": 0.60,
+            "amount_min": 50000, "amount_max": 4000000,
+            "tenure_months_min": 12, "tenure_months_max": 60,
+            "rate_range": [10.5, 24]
+          },
+          "assumptions": ["foir_clear", "foir_max", "amount_min", "rate_range"],
+          "documents": ["PAN and Aadhaar", "Last 3 salary slips", "6 months' salary-account statement"],
+          "sources": [
+            {"label": "BankBazaar: most lenders want age 21 to 60 and CIBIL 650+", "url": "https://www.bankbazaar.com/personal-loan-eligibility.html"},
+            {"label": "IndusInd: salaried minimum Rs 25,000 a month", "url": "https://www.bankbazaar.com/indusind-personal-loan-eligibility-calculator.html"},
+            {"label": "HDFC: up to Rs 40 lakh, up to 60 months, 1 year with current employer", "url": "https://www.bankbazaar.com/hdfc-personal-loan-eligibility-calculator.html"},
+            {"label": "ICICI: CIBIL 700+", "url": "https://www.icici.bank.in/personal-banking/loans/personal-loan/eligibility/eligibility-faqs"}
+          ]
+        },
+        {
+          "id": "pl_self_employed", "name": "Self-employed personal loan",
+          "for": "Doctors, CAs, shop owners and other self-employed applicants.",
+          "features": ["Assessed on annual income from tax returns", "No collateral", "Tenure up to 5 years"],
+          "criteria": {
+            "employment": ["self_employed"],
+            "age_min": 25, "age_max_at_maturity": 65,
+            "min_annual_income": 480000, "min_years_in_job": 2,
+            "cibil_min": 650, "cibil_clear": 700,
+            "foir_clear": 0.50, "foir_max": 0.60,
+            "amount_min": 50000, "amount_max": 3000000,
+            "tenure_months_min": 12, "tenure_months_max": 60,
+            "rate_range": [11, 26]
+          },
+          "assumptions": ["min_years_in_job", "foir_clear", "foir_max", "amount_min", "amount_max", "rate_range"],
+          "documents": ["PAN and Aadhaar", "2 years' income tax returns", "Business proof (GST or shop licence)", "12 months' bank statement"],
+          "sources": [
+            {"label": "IndusInd: self-employed over 25, Rs 4.8 lakh a year after tax", "url": "https://www.bankbazaar.com/indusind-personal-loan-eligibility-calculator.html"},
+            {"label": "ICICI: self-employed CIBIL 700+, maximum age 65 at end of tenure", "url": "https://www.icici.bank.in/personal-banking/loans/personal-loan/eligibility"}
+          ]
+        },
+        {
+          "id": "pl_flexi_hybrid", "name": "Flexi Hybrid personal loan",
+          "for": "Salaried applicants who want low EMIs at the start: interest-only EMIs first, then regular EMIs.",
+          "features": ["Interest-only EMIs for the first 24 months", "Interest only on the amount drawn", "Same eligibility as a regular personal loan"],
+          "criteria": {
+            "employment": ["salaried", "government"],
+            "age_min": 21, "age_max_at_maturity": 60,
+            "min_monthly_income": 25000, "min_years_in_job": 1,
+            "cibil_min": 650, "cibil_clear": 700,
+            "foir_clear": 0.50, "foir_max": 0.60,
+            "amount_min": 100000, "amount_max": 4000000,
+            "tenure_months_min": 36, "tenure_months_max": 84,
+            "rate_range": [11, 25]
+          },
+          "special": {"type": "interest_only", "interest_only_months": 24,
+                      "rule": "Affordability is tested on the full EMI that starts after the interest-only period, not the low starting EMI."},
+          "assumptions": ["foir_clear", "foir_max", "amount_min", "tenure_months_min", "tenure_months_max", "rate_range"],
+          "documents": ["PAN and Aadhaar", "Last 3 salary slips", "6 months' salary-account statement"],
+          "sources": [
+            {"label": "Bajaj Finance: Flexi Hybrid interest-only EMIs for the initial tenure, same eligibility as a regular personal loan", "url": "https://www.bajajfinserv.in/everything-you-need-to-know-about-flexi-hybrid-loans"},
+            {"label": "Bajaj Finance: interest-only EMIs up to 24 months", "url": "https://bajajfinserv.in/personal-loan-features"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "home", "name": "Home loan", "secured": true,
+      "summary": "Long loan secured on the property. Limited by RBI's loan-to-value caps, the applicant's age at the end of the loan, and EMI burden.",
+      "variants": [
+        {
+          "id": "hl_salaried", "name": "Salaried home loan",
+          "for": "Salaried and government employees buying or building a home.",
+          "features": ["Up to 30 years", "Lowest interest of all retail loans", "Loan capped at a share of the property value (RBI)"],
+          "criteria": {
+            "employment": ["salaried", "government"],
+            "age_min": 21, "age_max_at_maturity": 60,
+            "min_monthly_income": 25000, "min_years_in_job": 2,
+            "cibil_min": 650, "cibil_clear": 700,
+            "foir_clear": 0.50, "foir_max": 0.65,
+            "amount_min": 500000, "amount_max": 50000000,
+            "tenure_months_min": 60, "tenure_months_max": 360,
+            "ltv": "rbi_home", "rate_range": [8, 10.5]
+          },
+          "assumptions": ["min_monthly_income", "min_years_in_job", "cibil_min", "cibil_clear", "amount_min", "amount_max"],
+          "documents": ["PAN and Aadhaar", "Last 3 salary slips and Form 16", "6 months' bank statement", "Property papers and sale agreement"],
+          "sources": [
+            {"label": "RBI LTV caps: 90% up to Rs 30 lakh, 80% for Rs 30 to 75 lakh, 75% above", "url": "https://homefirstindia.com/blog/article/rbi-guidelines-for-home-loan"},
+            {"label": "Maximum tenure 30 years", "url": "https://homefirstindia.com/blog/article/rbi-guidelines-for-home-loan"},
+            {"label": "Most lenders: maximum age about 60 at maturity for salaried", "url": "https://homefinance.adityabirlacapital.com/blogs/home-finance/home-loan-for-senior-citizens-a-practical-strategy-guide"},
+            {"label": "Typical FOIR 50% to 65% across lenders", "url": "https://www.studiomatrx.org/utilities/home-loan-affordability"}
+          ]
+        },
+        {
+          "id": "hl_self_employed", "name": "Self-employed home loan",
+          "for": "Professionals and business owners buying or building a home.",
+          "features": ["Up to 30 years", "Older applicants allowed up to 70 at maturity", "RBI loan-to-value caps apply"],
+          "criteria": {
+            "employment": ["self_employed"],
+            "age_min": 25, "age_max_at_maturity": 70,
+            "min_annual_income": 360000, "min_years_in_job": 3,
+            "cibil_min": 650, "cibil_clear": 700,
+            "foir_clear": 0.50, "foir_max": 0.65,
+            "amount_min": 500000, "amount_max": 50000000,
+            "tenure_months_min": 60, "tenure_months_max": 360,
+            "ltv": "rbi_home", "rate_range": [8.5, 11]
+          },
+          "assumptions": ["age_min", "min_annual_income", "min_years_in_job", "cibil_min", "cibil_clear", "amount_min", "amount_max"],
+          "documents": ["PAN and Aadhaar", "3 years' income tax returns with computation", "12 months' bank statement", "Business proof", "Property papers"],
+          "sources": [
+            {"label": "Some housing finance companies allow age 70 at maturity for self-employed", "url": "https://homefinance.adityabirlacapital.com/blogs/home-finance/home-loan-for-senior-citizens-a-practical-strategy-guide"},
+            {"label": "RBI LTV caps", "url": "https://www.paisabazaar.com/home-loan/all-you-need-to-know-about-loan-to-value-ratio/"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "consumer", "name": "Consumer durable loan", "secured": false,
+      "summary": "Small, short loan to buy a phone, TV or appliance at a store. Friendlier to first-time borrowers.",
+      "variants": [
+        {
+          "id": "cd_standard", "name": "Easy EMI (standard)",
+          "for": "Anyone with a steady income buying an appliance or gadget.",
+          "features": ["6 to 24 months", "Small tickets", "First-time borrowers can be considered"],
+          "criteria": {
+            "employment": ["salaried", "government", "self_employed", "pensioner"],
+            "age_min": 21, "age_max_at_maturity": 75,
+            "min_monthly_income": 15000, "min_years_in_job": 0.5,
+            "cibil_min": 650, "cibil_clear": 685,
+            "foir_clear": 0.50, "foir_max": 0.65,
+            "amount_min": 10000, "amount_max": 150000,
+            "tenure_months_min": 6, "tenure_months_max": 24,
+            "ltv": "asset", "max_ltv": 1.0, "rate_range": [14, 26]
+          },
+          "assumptions": ["min_years_in_job", "foir_clear", "foir_max", "max_ltv", "rate_range"],
+          "documents": ["PAN and Aadhaar", "Bank statement or salary slip", "Store invoice"],
+          "sources": [
+            {"label": "Bajaj Finance Easy EMI: age 21 to 75 at end of tenure, CIBIL 685+, first-time borrowers may qualify", "url": "https://www.bajajfinserv.in/what-is-consumer-durable-loan"},
+            {"label": "Poonawalla Fincorp: at least Rs 15,000 a month, CIBIL 650", "url": "https://poonawallafincorp.com/consumer-durable-loan"},
+            {"label": "Tata Capital: 6 to 24 months", "url": "https://www.tatacapital.com/blog/capital-goods-loan/benefits-of-a-consumer-durable-loan/?paged=2"},
+            {"label": "TVS Credit: Rs 10,000 to Rs 1.5 lakh", "url": "https://indiacsr.in/?p=200171"}
+          ]
+        },
+        {
+          "id": "cd_no_cost", "name": "No-cost EMI",
+          "for": "Buyers of products where the brand or store pays the interest.",
+          "features": ["0% interest (paid by the brand or store)", "3 to 12 months", "Check the product price: some no-cost offers hide costs in it"],
+          "criteria": {
+            "employment": ["salaried", "government", "self_employed", "pensioner"],
+            "age_min": 21, "age_max_at_maturity": 75,
+            "min_monthly_income": 15000, "min_years_in_job": 0.5,
+            "cibil_min": 685, "cibil_clear": 700,
+            "foir_clear": 0.50, "foir_max": 0.65,
+            "amount_min": 5000, "amount_max": 150000,
+            "tenure_months_min": 3, "tenure_months_max": 12,
+            "ltv": "asset", "max_ltv": 1.0, "rate_range": [0, 0]
+          },
+          "special": {"type": "zero_interest", "rule": "EMI is worked out at 0% interest; affordability still has to pass."},
+          "assumptions": ["cibil_min", "cibil_clear", "min_years_in_job", "foir_clear", "foir_max", "amount_min", "max_ltv"],
+          "documents": ["PAN and Aadhaar", "Bank statement or salary slip", "Store invoice"],
+          "sources": [
+            {"label": "Kotak Smart EMI: no-cost EMI, 3 months to 1 year", "url": "https://www.paisabazaar.com/personal-loan/consumer-loan"},
+            {"label": "Tata Capital: no-cost plans can include hidden costs in the price", "url": "https://www.tatacapital.com/blog/capital-goods-loan/benefits-of-a-consumer-durable-loan/?paged=2"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vehicle", "name": "Vehicle loan", "secured": true,
+      "summary": "Loan secured on a new car or two-wheeler. Limited by a share of the on-road price and the applicant's age at the end of the loan.",
+      "variants": [
+        {
+          "id": "vl_new_car", "name": "New car loan",
+          "for": "Salaried or self-employed applicants buying a new car.",
+          "features": ["Up to 7 years", "Up to 90% of the on-road price", "Car is the security"],
+          "criteria": {
+            "employment": ["salaried", "government", "self_employed"],
+            "age_min": 21, "age_max_at_maturity": {"salaried": 60, "government": 60, "self_employed": 65},
+            "min_annual_income": 300000, "min_years_in_job": 1,
+            "cibil_min": 650, "cibil_clear": 700,
+            "foir_clear": 0.50, "foir_max": 0.65,
+            "amount_min": 100000, "amount_max": 10000000,
+            "tenure_months_min": 12, "tenure_months_max": 84,
+            "ltv": "asset", "max_ltv": 0.90, "rate_range": [8.7, 13]
+          },
+          "assumptions": ["min_annual_income", "cibil_min", "cibil_clear", "foir_clear", "foir_max", "amount_min", "amount_max"],
+          "documents": ["PAN and Aadhaar", "Salary slips or 2 years' tax returns", "6 months' bank statement", "Dealer quotation"],
+          "sources": [
+            {"label": "SBI: up to 90% of on-road price, up to 7 years", "url": "https://sbi.co.in/portal/web/personal-banking/sbi-new-car-loan-scheme"},
+            {"label": "Kotak: up to 90% of on-road price; maximum age 58 salaried, 65 self-employed", "url": "https://www.bankbazaar.com/kotak-car-loan-eligibility-calculator.html"},
+            {"label": "Banks: 21 to 60 salaried, 21 to 65 self-employed; at least 1 year in job", "url": "https://justdial.bankbazaar.com/car-loan-eligibility.html"},
+            {"label": "ICICI: tenure 12 to 84 months", "url": "https://www.icicibank.com/personal-banking/loans/car-loan"}
+          ]
+        },
+        {
+          "id": "vl_two_wheeler", "name": "Two-wheeler loan",
+          "for": "First jobbers, students' parents, gig workers and others buying a scooter or bike.",
+          "features": ["12 to 48 months", "Up to 95% of the on-road price", "Low minimum income"],
+          "criteria": {
+            "employment": ["salaried", "government", "self_employed"],
+            "age_min": 21, "age_max_at_maturity": {"salaried": 60, "government": 60, "self_employed": 65},
+            "min_monthly_income": 10000, "min_years_in_job": 0.5,
+            "cibil_min": 650, "cibil_clear": 700,
+            "foir_clear": 0.50, "foir_max": 0.65,
+            "amount_min": 20000, "amount_max": 500000,
+            "tenure_months_min": 12, "tenure_months_max": 48,
+            "ltv": "asset", "max_ltv": 0.95, "rate_range": [10, 22]
+          },
+          "assumptions": ["cibil_min", "cibil_clear", "foir_clear", "foir_max", "amount_min", "rate_range"],
+          "documents": ["PAN and Aadhaar", "Salary slip or bank statement", "Dealer quotation"],
+          "sources": [
+            {"label": "IndusInd: up to 95% on-road; salaried 21 to 60, self-employed 21 to 65", "url": "https://www.indusind.bank.in/personal-banking/products/loans/two-wheeler-loan.html"},
+            {"label": "Kotak Mahindra Prime: maximum age at maturity 60 salaried, 65 self-employed", "url": "https://primeloans.kotak.com/twoWheeler.htm"},
+            {"label": "Bandhan Bank: up to 95% LTV, up to Rs 5 lakh, up to 4 years", "url": "https://bandhanbank.com/sites/default/files/2025-04/Brochure-Two-wheeler-Loan.pdf"},
+            {"label": "Typical income Rs 10,000 to 15,000 a month; 6 months to 1 year in job", "url": "https://bankbazaar.com/two-wheeler-loan-eligibility.html"}
+          ]
+        }
+      ]
+    }
+  ]
+}
