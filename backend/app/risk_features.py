@@ -14,17 +14,22 @@ EMPLOYMENT_FROM_SOURCE = {
 }
 
 RISK_FEATURES = ["payment_to_income", "age", "years_in_job", "no_of_dependents", "owns_home", "owns_vehicle",
-                 "emp_self_employed", "emp_government", "emp_pensioner", "emp_not_employed"]
+                 "emp_self_employed", "emp_government", "emp_pensioner", "emp_not_employed",
+                 # credit-report facts (from the credit bureau table)
+                 "active_loans", "debt_to_income", "overdue_now", "credit_history_years", "new_loans_12m", "no_credit_history"]
 RISK_LABELS = {
     "payment_to_income": "New EMI as share of income", "age": "Age", "years_in_job": "Years in current job",
     "no_of_dependents": "Dependents", "owns_home": "Owns a home", "owns_vehicle": "Owns a vehicle",
     "emp_self_employed": "Self-employed", "emp_government": "Government job", "emp_pensioner": "Pensioner",
-    "emp_not_employed": "Not employed",
+    "emp_not_employed": "Not employed", "active_loans": "Active loans and cards", "debt_to_income": "Outstanding debt vs monthly income",
+    "overdue_now": "A payment overdue now", "credit_history_years": "Years of credit history", "new_loans_12m": "New loans in the last year",
+    "no_credit_history": "No credit history",
 }
 # +1: risk can only rise with the feature; -1: only fall; 0: free
 RISK_MONOTONE = {"payment_to_income": 1, "age": -1, "years_in_job": -1, "no_of_dependents": 0,
                  "owns_home": 0, "owns_vehicle": 0, "emp_self_employed": 0, "emp_government": 0,
-                 "emp_pensioner": 0, "emp_not_employed": 0}
+                 "emp_pensioner": 0, "emp_not_employed": 0, "active_loans": 0, "debt_to_income": 1, "overdue_now": 1,
+                 "credit_history_years": 0, "new_loans_12m": 1, "no_credit_history": 0}
 
 
 def risk_frame(df: pd.DataFrame) -> pd.DataFrame:
@@ -37,4 +42,6 @@ def risk_frame(df: pd.DataFrame) -> pd.DataFrame:
     out["owns_vehicle"] = df["owns_vehicle"].astype(float)
     for t in ("self_employed", "government", "pensioner", "not_employed"):
         out[f"emp_{t}"] = (df["employment_type"] == t).astype(float)
+    for f in ("active_loans", "debt_to_income", "overdue_now", "credit_history_years", "new_loans_12m", "no_credit_history"):
+        out[f] = df[f].astype(float)
     return out[RISK_FEATURES]

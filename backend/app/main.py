@@ -16,7 +16,7 @@ from . import agent as AG
 from . import assistant as A
 from . import config as C
 from . import explain as X
-from . import model, policy, risk, seed, store
+from . import approval_v2, model, policy, risk, seed, store
 from .rules import input_warnings
 from .schemas import (ApplicationIn, AskIn, AskOut, AssistantIn, BatchIn, DecisionOut, Explanation,
                       ReviewIn, SimulateIn)
@@ -128,9 +128,13 @@ def model_card():
                 "role": "explanations and assistant answers only",
                 "data_sent": "derived figures and rule results; no names, IDs or contact details"},
         "assistant_retrieval_eval": A.retrieval_eval(),
+        "approval_v2": {k: approval_v2.load()[1][k] for k in ("model_version", "data_source", "rows_in_source", "decided_rows",
+                                                                 "training_rows", "metrics", "fairness_mean_predicted_approval",
+                                                                 "global_importance", "labels", "leakage_checks", "not_covered")},
         "risk_model": {k: risk.load()[1][k] for k in ("model_version", "data_source", "rows", "base_default_rate",
                                                       "bands", "metrics", "fairness_mean_predicted_risk",
-                                                      "global_importance", "labels", "excluded_on_purpose")},
+                                                      "global_importance", "labels", "excluded_on_purpose",
+                                                      "previous_version", "no_history_default_rate", "with_history_default_rate")},
     }
 
 

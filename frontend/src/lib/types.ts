@@ -12,6 +12,7 @@ export interface Application {
   luxury_assets_value: number; bank_asset_value: number; existing_emi_monthly: number; annual_rate: number
   employment_type: string; years_in_job: number; no_credit_history?: boolean
   product?: string | null; variant?: string | null; property_value?: number | null; asset_price?: number | null
+  existing_loans_count: number; outstanding_debt: number; overdue_now: boolean; credit_history_years: number | null; new_loans_12m: number
 }
 
 export interface Result {

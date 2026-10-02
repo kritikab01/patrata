@@ -1,0 +1,185 @@
+{
+  "model_version": "20261002-0317",
+  "data_source": "Kaggle: Home Credit Default Risk, previous_application.csv joined with application_train.csv",
+  "rows_in_source": 1670214,
+  "decided_rows": 1327428,
+  "training_rows": 1046997,
+  "features": [
+    "loan_to_income",
+    "payment_to_income",
+    "tenure_months",
+    "age",
+    "years_in_job",
+    "no_of_dependents",
+    "owns_home",
+    "owns_vehicle",
+    "is_cash",
+    "is_revolving",
+    "emp_self_employed",
+    "emp_government",
+    "emp_pensioner",
+    "emp_not_employed"
+  ],
+  "labels": {
+    "loan_to_income": "Loan vs monthly income",
+    "payment_to_income": "New EMI vs monthly income",
+    "tenure_months": "Tenure",
+    "age": "Age",
+    "years_in_job": "Years in current job",
+    "no_of_dependents": "Dependents",
+    "owns_home": "Owns a home",
+    "owns_vehicle": "Owns a vehicle",
+    "is_cash": "Personal (cash) loan",
+    "is_revolving": "Credit line (Flexi)",
+    "emp_self_employed": "Self-employed",
+    "emp_government": "Government job",
+    "emp_pensioner": "Pensioner",
+    "emp_not_employed": "Not employed"
+  },
+  "monotone_constraints": {
+    "loan_to_income": -1,
+    "payment_to_income": -1,
+    "tenure_months": 0,
+    "age": 0,
+    "years_in_job": 1,
+    "no_of_dependents": 0,
+    "owns_home": 0,
+    "owns_vehicle": 0,
+    "is_cash": 0,
+    "is_revolving": 0,
+    "emp_self_employed": 0,
+    "emp_government": 0,
+    "emp_pensioner": 0,
+    "emp_not_employed": 0
+  },
+  "training_ranges": {
+    "loan_to_income": [
+      0.0745428153846154,
+      11.76923076923077
+    ],
+    "payment_to_income": [
+      0.008333333333333333,
+      0.5354758234482776
+    ],
+    "tenure_months": [
+      0.0,
+      60.0
+    ],
+    "age": [
+      20.101300479123886,
+      66.00958247775498
+    ],
+    "years_in_job": [
+      0.0,
+      30.87206023271737
+    ],
+    "no_of_dependents": [
+      0.0,
+      3.0
+    ],
+    "owns_home": [
+      0.0,
+      1.0
+    ],
+    "owns_vehicle": [
+      0.0,
+      1.0
+    ],
+    "is_cash": [
+      0.0,
+      1.0
+    ],
+    "is_revolving": [
+      0.0,
+      1.0
+    ],
+    "emp_self_employed": [
+      0.0,
+      1.0
+    ],
+    "emp_government": [
+      0.0,
+      1.0
+    ],
+    "emp_pensioner": [
+      0.0,
+      1.0
+    ],
+    "emp_not_employed": [
+      0.0,
+      0.0
+    ]
+  },
+  "metrics": {
+    "roc_auc": 0.7562,
+    "logistic_regression_roc_auc": 0.7478,
+    "accuracy": 0.8221,
+    "test_rows": 209400,
+    "approval_rate": 0.809,
+    "per_product": {
+      "cash": {
+        "test_rows": 76583,
+        "approval_rate": 0.693,
+        "roc_auc": 0.6966,
+        "accuracy": 0.7282,
+        "majority_baseline": 0.6933,
+        "review_below": 0.4377,
+        "strong_above": 0.844,
+        "refused_rate_bottom10": 0.662,
+        "refused_rate_rest": 0.267
+      },
+      "consumer": {
+        "test_rows": 118503,
+        "approval_rate": 0.908,
+        "roc_auc": 0.6189,
+        "accuracy": 0.9086,
+        "majority_baseline": 0.9083,
+        "review_below": 0.8624,
+        "strong_above": 0.9443,
+        "refused_rate_bottom10": 0.191,
+        "refused_rate_rest": 0.081
+      },
+      "revolving": {
+        "test_rows": 14314,
+        "approval_rate": 0.6,
+        "roc_auc": 0.6164,
+        "accuracy": 0.6085,
+        "majority_baseline": 0.6004,
+        "review_below": 0.4633,
+        "strong_above": 0.7715,
+        "refused_rate_bottom10": 0.538,
+        "refused_rate_rest": 0.384
+      }
+    }
+  },
+  "fairness_mean_predicted_approval": {
+    "F": 0.8074,
+    "M": 0.8119
+  },
+  "global_importance": {
+    "tenure_months": 0.572,
+    "is_cash": 0.3043,
+    "age": 0.1399,
+    "loan_to_income": 0.1208,
+    "years_in_job": 0.1102,
+    "owns_vehicle": 0.0372,
+    "emp_pensioner": 0.0354,
+    "no_of_dependents": 0.0328,
+    "payment_to_income": 0.0305,
+    "is_revolving": 0.0197,
+    "emp_self_employed": 0.0139,
+    "owns_home": 0.0129,
+    "emp_government": 0.0108,
+    "emp_not_employed": 0.0
+  },
+  "leakage_checks": [
+    "Dropped rows with a blank proposed EMI or tenure (blank only for refusals)",
+    "Down payment not used (blank far more often for refusals)",
+    "Nothing decided after approval is used",
+    "Applicant profile stepped back to the decision date"
+  ],
+  "not_covered": [
+    "Home loans (no public data with real home-loan decisions)",
+    "CIBIL score (not in this data)"
+  ]
+}

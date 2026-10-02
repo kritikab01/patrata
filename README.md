@@ -15,7 +15,7 @@ would get it approved, and a human review workflow on top.
 | Area | Features |
 |---|---|
 | Product book | 4 products, 9 variants (personal, home, consumer durable, vehicle), each with its own rules from lenders' published criteria and RBI caps; catalogue page with sources |
-| Two models | Approval model (4,269 Indian applications) plus repayment-risk model (307,499 real Home Credit loans) |
+| Two real-data models | Approval model v2 (1,046,997 real approve/refuse decisions, by product) and repayment-risk model v2 (307,499 real loans plus 1.7 million credit-bureau records) |
 | Dashboard | KPIs, decisions per day, why cases need attention, approval by CIBIL band, recent cases |
 | New application | Example applicants, 3-step form with Indian number formatting, live affordability preview (EMI, EMI-burden and CIBIL meters) |
 | Result | Decision stamp, status tracker, policy checks, SHAP drivers, suggested change, what-if simulator, AI explanation in English/Hindi with read-aloud, guarded Q&A with voice input, printable decision note (PDF) |
@@ -49,7 +49,7 @@ Dockerfile  one container serves the web app and the API on Hugging Face Spaces
 Officer fills the form
  → Validation        reject impossible values, warn on implausible ones
  → Policy rules      age band, CIBIL floor, FOIR (EMI burden) cap   ← deterministic
- → ML models         XGBoost approval model + repayment-risk model (307k real loans)
+ → ML models         approval v2 (1M real decisions) + repayment risk v2 (307k loans, 1.7M bureau records)
  → Range guard       inputs outside the training data → human review
  → Decision policy   rules + probability → Approve / Refer / Decline
  → Counterfactual    smallest amount/term change that would clear all checks
@@ -62,7 +62,7 @@ explains. The LLM never sees names or IDs, never computes a number, and any numb
 that isn't in the facts it was given causes its answer to be thrown away in favour of a
 deterministic template.
 
-## What we found in the data (be honest about this in the report)
+## What we found in the original data, and why we replaced it
 
 | Finding | Number |
 |---|---|
@@ -75,7 +75,7 @@ deterministic template.
 | Rows with negative asset values | 28 (clipped to zero) |
 
 The labels are close to a synthetic rule, so high accuracy says more about the dataset than
-about real credit risk. That is why the app wraps the model in policy rules, a range guard and
+about real credit risk. **Both models now learn from real Home Credit data instead; see `docs/DATA_AND_MODEL.md`.** That is why the app wraps the model in policy rules, a range guard and
 a Refer band. See `backend/reports/figures/cibil_curve.png` for the cliff at CIBIL 550.
 
 ## Run it on a Mac
@@ -88,7 +88,7 @@ source .venv/bin/activate
 uv pip install -r requirements-dev.txt
 cp .env.example .env                  # paste your Groq key into .env
 
-pytest -q                             # 76 tests, each mapped to an evaluation question
+pytest -q                             # 83 tests, each mapped to an evaluation question
 uvicorn app.main:app --reload         # app at http://127.0.0.1:8000, API docs at /docs
 ```
 

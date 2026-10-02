@@ -72,3 +72,63 @@ Any **fail** means decline, any **review** means a credit officer looks, and all
 14 new automated tests cover the product engine (76 in total): RBI loan-to-value caps, age at the end of the
 loan, Flexi Hybrid's full-EMI test, no-cost EMI at 0%, first-time borrowers, minimum income and tenure limits,
 wrong-variant suggestions, validation, batch rows and the assistant's product answers.
+
+---
+
+# What changed: real data for both models (Step 3)
+
+## In simple words
+
+**Before:** the approval model learned from 4,269 made-up applications that follow an almost fixed CIBIL rule, and
+the risk model knew nothing about the applicant's other loans.
+
+**Now:**
+
+| | What it learns from | What it adds |
+|---|---|---|
+| Approval model v2 | **1,046,997 real approve/refuse decisions**, by product type | A lender's real judgement on loan size, EMI, tenure, age and job stability, separately for personal and consumer loans |
+| Risk model v2 | 307,499 real loans **plus 1,716,428 credit-bureau records** | Current obligations the way a credit report shows them |
+
+**New questions on the form** (the credit-report facts): active loans and cards, total outstanding on them, any
+payment overdue now, years of credit history, new loans in the last 12 months. First-time borrowers skip them.
+
+**Two new rules for every variant:** a payment overdue right now declines the application until it is cleared, and
+three or more new loans in a year sends it to a credit officer.
+
+## Why the numbers look lower, and why that is better
+
+The old model claimed 98.7% because its data was simple. Real lending is harder: the new approval model scores
+ROC-AUC 0.756 and the risk model 0.661. These are honest numbers, and they come with evidence: applicants the approval
+model puts in a personal loan's bottom 10% were really refused 66% of the time, against 27% for everyone else.
+
+## The careful parts (good material for Section C)
+
+- **Leakage:** refused applications often had a blank EMI or down payment. A model would learn "blank means refused",
+  which is cheating. Those rows and that field were dropped.
+- **Fair comparison:** vehicle loans were first judged against phone loans and were wrongly sent to review. The data
+  has very few vehicle loans, so vehicle and home loans now say "Approval model: not used" and rely on their rules.
+- **Second opinion, not a judge:** the approval model can send a case to a human, never decline it.
+- **Fairness:** gender is never an input. Average predicted approval: women 80.7%, men 81.2%. Average predicted risk:
+  women 8.0%, men 8.2%.
+- **First-time borrowers:** in real data they defaulted 10.1% of the time against 7.7%. Riskier, but not enough to
+  decline them, which supports the RBI-aligned "refer, don't decline" rule.
+
+## A worked example for E-Q7 (similar inputs, different outputs)
+
+The same Flexi Hybrid applicant, ₹8 lakh, only the tenure changes:
+
+| Tenure | Decision | Why |
+|---|---|---|
+| 3 or 4 years | Approved | Every rule passes and the approval model agrees |
+| 5 years | Referred | Real lending data refused long cash loans more often; this lands in the bottom 10% |
+| 6 or 7 years | Referred | Longer than any real decision the model saw, so a human confirms |
+
+All referred cases get the same advice: "Changing the tenure to 4 years would clear every check." The jump between 4 and
+5 years is justified by real data, not instability. An earlier version approved 6 years because the model simply
+didn't vote outside its data; testing this found the gap, and now unusual loans go to a person instead.
+
+## Tests
+
+83 automated tests (7 new for Step 3): the bottom-10% review rule, overdue and new-loan checks, first-time borrower
+validation, credit-report facts moving repayment risk, loans outside the model's data going to a human, and both
+real-data models in the governance report.

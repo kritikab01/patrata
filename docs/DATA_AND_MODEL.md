@@ -1,143 +1,119 @@
 # Data and models
 
-Patrata uses **two models trained on 311,768 loans in total**:
+## In one minute
 
-| Model | Data | Predicts | Quality |
+| | Approval model v2 | Repayment-risk model v2 | Approval model v1 (legacy) |
 |---|---|---|---|
-| Approval model | 4,269 Indian applications (Kaggle) | Would a lender approve this? | 98.7% accuracy, near-rule-based data |
-| Repayment-risk model | 307,499 real loans (Home Credit) | Will the borrower have payment difficulties? | ROC-AUC 0.62, realistic |
+| Question it answers | Would a lender approve this? | Will the borrower struggle to repay? | Would a lender approve this? |
+| Data | **1,046,997 real decisions** (Home Credit) | **307,499 real loans + 1,716,428 credit-bureau records** (Home Credit) | 4,269 synthetic Indian applications (Kaggle) |
+| Used for | Personal, Flexi and consumer durable loans | Every application | Only when no product is chosen |
+| Result | ROC-AUC 0.756 (personal 0.70, consumer 0.62) | ROC-AUC 0.661 (was 0.621 without bureau facts) | 98.7% accuracy on near-rule-based data |
+| Role | Second opinion: bottom 10% for the product goes to a human | Above 1.5x average risk goes to a human | Kept for comparison |
 
-The approval model mirrors Indian lending practice (CIBIL, assets); the risk model brings real repayment
-behaviour. Neither declines anyone on its own: policy rules and a human credit manager have the final say.
+Neither model ever declines anyone on its own. Declines come only from a variant's published rules (see `PRODUCT_BOOK.md`).
 
+## The data, and why it was changed
 
-## The dataset
+**Before:** the approval model learned from 4,269 synthetic rows whose labels follow a near-fixed rule (approve if CIBIL
+is 550 or more, or the term is 4 years or less). It scored 98.7%, but only because the data was simple, and it had no
+product type, no age, no existing loans and no repayment outcome.
 
-**Loan Approval Prediction Dataset** by Archit Sharma, Kaggle:
-https://www.kaggle.com/datasets/architsharma01/loan-approval-prediction-dataset
+**Now:** both main models learn from the **Home Credit Default Risk** competition data (Kaggle), real anonymised data
+from a lender serving people with little or no credit history:
 
-- 4,269 past loan applications, 13 columns, no missing values
-- Indian context: amounts in rupees, CIBIL score
-- Target: `loan_status` (Approved / Rejected), 62% approved
-
-| Column | Meaning | Used by the model? |
+| Table | Rows | What it gives Patrata |
 |---|---|---|
-| `loan_id` | Row id | No |
-| `no_of_dependents` | People relying on the applicant's income | Yes |
-| `education` | Graduate / Not Graduate | **No** (no signal, fairness risk) |
-| `self_employed` | Yes / No | **No** (no signal, fairness risk) |
-| `income_annum` | Annual income, ₹ | Yes |
-| `loan_amount` | Amount requested, ₹ | Yes |
-| `loan_term` | Years (2 to 20) | Yes |
-| `cibil_score` | 300 to 900 | Yes |
-| `residential_assets_value` | ₹ (28 rows negative, set to 0) | Via total assets |
-| `commercial_assets_value` | ₹ | Via total assets |
-| `luxury_assets_value` | ₹ | Via total assets |
-| `bank_asset_value` | ₹ | Via total assets |
-| `loan_status` | Approved / Rejected | Target |
+| `application_train.csv` | 307,511 | Who the applicant is, and whether they later had payment difficulties (8.1% did) |
+| `previous_application.csv` | 1,670,214 | The lender's past **approve/refuse decisions**, by product type |
+| `bureau.csv` | 1,716,428 | Each applicant's loans at other lenders: **active loans, debt, overdue days, history** |
 
-The CSV is **not committed** to GitHub (it's someone else's dataset). The trained model is committed,
-so the app runs without it. You only need the CSV to retrain.
+The CSVs (about 750 MB) are **not committed**. The trained models in `backend/artifacts/` are.
 
-## Engineered features (`backend/app/features.py`)
+## Approval model v2 (`train/train_approval_v2.py`)
 
-The same code runs at training time and in the live app, so the model always sees identical inputs.
+**Target:** Approved = 1, Refused = 0. Cancelled and unused offers are dropped. 1,327,428 decided applications of
+three types; 1,046,997 remain after the checks below.
 
-- `loan_to_income` = loan amount ÷ annual income
-- `total_assets` = sum of the four asset columns (negatives clipped to 0)
-- `asset_coverage` = total assets ÷ loan amount
+| Home Credit product type | Approval rate | Patrata variants judged against it |
+|---|---|---|
+| Cash loans | 69% | Salaried, self-employed and Flexi Hybrid personal loans (Flexi Hybrid is a term loan) |
+| Consumer loans (phones, electronics, computers, furniture) | 91% | Easy EMI and no-cost EMI |
+| Revolving (credit lines) | 60% | None (kept in training) |
 
-## What `train/train.py` does, step by step
+**Not covered, on purpose:** home loans (the data has none) and vehicle loans (very few). Judging a car loan against
+phone loans would be unfair, so these are decided by their own rules plus the risk model, and the result says
+"Approval model: not used" with the reason.
 
-1. **Load and clean**: strip spaces from column names and values, convert the target to 1/0.
-2. **Data audit**: approval rate by CIBIL band and by term, education and self-employment gaps,
-   negative asset rows, loan-to-income range, accuracy of the one-line rule. Saved into the metadata.
-3. **Split**: 80% training, 20% test (854 applications), stratified, fixed seed 42 so results repeat.
-4. **Baseline**: scaled logistic regression.
-5. **Main model**: XGBoost (300 trees, depth 4) with **monotone constraints**: CIBIL can only raise
-   approval, loan-to-income can only lower it, asset cover can only raise it.
-6. **Validation**: 5-fold cross-validated ROC-AUC on the training set, then accuracy, precision,
-   recall, F1, Brier score and a confusion matrix on the untouched test set.
-7. **Fairness check**: approval rates by education and self-employment on the test set.
-8. **Explainability**: mean |SHAP| per feature (XGBoost's built-in TreeSHAP).
-9. **Save**: `artifacts/model.json` (the model), `artifacts/metadata.json` (metrics, audit, training
-   ranges for the out-of-range guard, version stamp) and four charts in `reports/figures/`.
+**Features (all unit-free, so they carry over to rupees):** loan versus monthly income, new EMI versus monthly income,
+tenure, age, years in the job, employment type, dependents, home and vehicle ownership, product type.
+Monotone constraints: a bigger EMI or loan relative to income can only lower approval; more years in the job can only raise it.
 
-Current results: XGBoost **98.7%** accuracy, ROC-AUC **0.9996**; logistic regression 91.6%;
-one-line rule 95.8%. Be open that the high accuracy comes from a near-rule-based dataset.
+**Leakage checks (the model must not cheat):**
+1. The proposed EMI and tenure are blank for 14% of refusals but never for approvals, so those rows are dropped.
+2. Down payment is not used: it is blank for 70% of refusals but 36% of approvals.
+3. Nothing decided after approval (final amount, insurance) is used.
+4. The applicant's profile comes from a later date, so age and job years are stepped back to the decision date.
+
+**Results on 209,400 held-out decisions:** ROC-AUC 0.756 (logistic regression 0.748); personal 0.697, consumer 0.619.
+
+**How it is used:** each product's bottom 10% of predicted approval goes to a credit officer. Evidence:
+
+| Product | Refused in the bottom 10% | Refused among everyone else |
+|---|---|---|
+| Personal (cash) | 66% | 27% |
+| Consumer | 19% | 8% |
+
+Fairness: average predicted approval is 80.7% for women and 81.2% for men. Gender is never an input.
+
+## Repayment-risk model v2 (`train/train_risk.py`)
+
+**Target:** payment difficulties (Home Credit `TARGET`), 8.07% on average.
+
+**Features:** new EMI versus income, age, years in the job, employment type, dependents, home and vehicle ownership,
+plus **credit-report facts** built from `bureau.csv`: active loans and cards, outstanding debt versus monthly income,
+any payment overdue now, years of credit history, new loans in the last 12 months, and no credit history at all.
+Gender, education and marital status are excluded on purpose.
+
+**Results on 61,500 held-out loans:** ROC-AUC 0.661 (0.621 before bureau facts). The riskiest 10% default 6.0x as
+often as the safest 10%.
+
+| Band | Share of borrowers | Actually defaulted |
+|---|---|---|
+| Low (below 6.05%) | 40% | 4.2% |
+| Medium | 43% | 8.8% |
+| High (12.1% and above) | 17% | 15.5% |
+
+First-time borrowers (no bureau record) defaulted 10.1% of the time against 7.7%: riskier, but not enough to decline
+them, which supports Patrata's "refer, don't decline" rule (RBI, January 2025). Average predicted risk: women 8.0%,
+men 8.2%.
+
+## CIBIL
+
+None of the real datasets contains CIBIL scores, so CIBIL is used the way lenders publish it: as a **per-variant
+cut-off** (clear, review, minimum). The behaviour behind a CIBIL score (overdue payments, debt, history length,
+recent borrowing) is what the risk model now learns from real bureau records.
 
 ## Retrain on your Mac
 
 ```bash
 cd ~/patrata/backend && source .venv/bin/activate
-mv ~/Downloads/loan_approval_dataset.csv data/
-python train/train.py                   # about 10 seconds; prints all metrics
-python scripts/evaluate_scenarios.py    # personas + stability → reports/scenario_results.md
-pytest -q                               # everything must still pass
+python3 - << 'PY'
+import shutil
+from huggingface_hub import hf_hub_download
+for f in ["application_train.csv", "previous_application.csv", "bureau.csv"]:
+    shutil.copy(hf_hub_download("minhSpaceX/home_credit", f, repo_type="dataset"), f"data/home_credit_{f}")
+PY
+python train/train_approval_v2.py   # about 4 minutes
+python train/train_risk.py          # about 2 minutes
+pytest -q
 ```
 
-Restart the server afterwards. Every decision records the model version it was made with.
-
-## Switching to a different dataset
-
-The rest of the app (rules, guard, explanations, UI) doesn't care where the model came from, as long
-as the model receives the 8 features above. To swap data:
-
-1. Put the new CSV in `backend/data/`.
-2. In `train/train.py`, change `DATA` and `load()` so the new columns are renamed to this project's
-   names (`income_annum`, `loan_amount`, `loan_term`, `cibil_score`, the asset columns,
-   `no_of_dependents`) and the target becomes `y` (1 = approved or repaid, 0 = rejected or defaulted).
-3. If the new data lacks a column (for example assets), set it to 0 in `load()` and say so in the report.
-4. Run the retrain commands above.
-5. Update the numbers quoted in `backend/app/knowledge.md` (the assistant's knowledge) so it
-   doesn't cite old accuracy figures, and check `reports/scenario_results.md` still makes sense.
-
-Good candidates if you ever need more realistic data: Kaggle's *Credit Risk Dataset* (32,581 loans with
-a default outcome) or *Home Credit Default Risk* (real lender data, much larger). Both predict
-**default**, which is closer to real credit risk than past approvals.
+The original Kaggle data is at https://www.kaggle.com/c/home-credit-default-risk/data (needs a Kaggle login). The
+legacy v1 model still retrains with `python train/train.py` and the dataset at
+https://www.kaggle.com/datasets/architsharma01/loan-approval-prediction-dataset.
 
 ## What is not learned from data
 
-These are business policy, set in `backend/app/config.py`, not trained:
-age 21 to 60, CIBIL floor 600 and review band 600 to 699, EMI burden review above 50% and decline above 65%,
-approve only at 75%+ model likelihood. Changing them changes decisions immediately, with no retraining.
-
-## The second model: repayment risk (`train/train_risk.py`)
-
-**Data:** Home Credit Default Risk (Kaggle competition), `application_train.csv`: 307,511 real loans from
-Home Credit, a lender serving people with little or no credit history. `TARGET = 1` means the client had
-payment difficulties. Average default rate 8.07%.
-
-**Why only these features:** the source currency isn't the rupee, so absolute amounts can't transfer.
-Only unit-free facts are used, and each one can be entered on Patrata's form:
-
-| Feature | From Patrata's form |
-|---|---|
-| New EMI as share of income | EMI from amount, rate and term ÷ income |
-| Age | Age |
-| Years in current job | New field |
-| Employment type (salaried, self-employed, government, pensioner, not employed) | New field |
-| Dependents | Dependents |
-| Owns a home / vehicle | Residential property / vehicles value above zero |
-
-**Left out on purpose:** gender, education, marital status (fairness), absolute income (currency).
-
-**Results on 61,500 held-out loans:** ROC-AUC 0.62 (logistic regression 0.619). The riskiest 10% default
-3.5× as often as the safest 10%. Risk bands (relative to the 8.07% average):
-
-| Band | Rule | Share of borrowers | Actually defaulted |
-|---|---|---|---|
-| Low | below 6.05% | 36% | 5.1% |
-| Medium | 6.05% to 12.1% | 49% | 8.6% |
-| High | 12.1% and above (1.5× average) | 14% | 13.6% |
-
-A **high** band adds a "Repayment risk" review flag, so the case goes to a credit officer. It never
-declines on its own. The model learned almost nothing about unemployed borrowers (only 45 such loans), so a
-policy rule sends every "not employed" applicant to a human instead.
-
-Fairness check: average predicted risk for women 7.97%, men 8.26%.
-
-**Retrain:** download `application_train.csv` from
-https://www.kaggle.com/c/home-credit-default-risk/data, save it as
-`backend/data/home_credit_application_train.csv`, then run `python train/train_risk.py` (about a minute).
-The 166 MB CSV is not committed; the trained model (`artifacts/risk_model.json`) is.
+The product book (`backend/app/products.json`) sets each variant's rules: age, income, CIBIL, EMI burden, amount,
+tenure, loan-to-value. Two further rules apply to every variant: a payment overdue now declines, and three or more
+new loans in a year needs a review (Patrata assumption). Changing these needs no retraining.

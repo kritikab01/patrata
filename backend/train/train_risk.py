@@ -42,7 +42,7 @@ INK, RED, SLATE = "#1E2A5A", "#B42318", "#5B6475"
 
 
 def load() -> pd.DataFrame:
-    cols = ["TARGET", "CNT_CHILDREN", "AMT_INCOME_TOTAL", "AMT_ANNUITY", "DAYS_BIRTH", "DAYS_EMPLOYED",
+    cols = ["SK_ID_CURR", "TARGET", "CNT_CHILDREN", "AMT_INCOME_TOTAL", "AMT_ANNUITY", "DAYS_BIRTH", "DAYS_EMPLOYED",
             "NAME_INCOME_TYPE", "FLAG_OWN_REALTY", "FLAG_OWN_CAR", "CODE_GENDER", "NAME_EDUCATION_TYPE"]
     df = pd.read_csv(DATA, usecols=cols).dropna(subset=["AMT_ANNUITY"])
     out = pd.DataFrame({
@@ -54,6 +54,25 @@ def load() -> pd.DataFrame:
         "owns_home": (df.FLAG_OWN_REALTY == "Y").astype(int),
         "owns_vehicle": (df.FLAG_OWN_CAR == "Y").astype(int),
     })
+    # Credit-report facts from the bureau table: what a CIBIL report would show about current obligations
+    b = pd.read_csv(DATA.parent / "home_credit_bureau.csv",
+                    usecols=["SK_ID_CURR", "CREDIT_ACTIVE", "CREDIT_DAY_OVERDUE", "DAYS_CREDIT", "AMT_CREDIT_SUM_DEBT"])
+    act = b[b.CREDIT_ACTIVE == "Active"]
+    agg = pd.DataFrame({
+        "active_loans": act.groupby("SK_ID_CURR").size(),
+        "debt": act.groupby("SK_ID_CURR").AMT_CREDIT_SUM_DEBT.sum(min_count=1),
+        "overdue_now": (act.assign(o=act.CREDIT_DAY_OVERDUE > 0).groupby("SK_ID_CURR").o.max()).astype(float),
+    })
+    agg = agg.join(pd.DataFrame({"credit_history_years": -b.groupby("SK_ID_CURR").DAYS_CREDIT.min() / 365.25,
+                                 "new_loans_12m": b[b.DAYS_CREDIT >= -365].groupby("SK_ID_CURR").size()}), how="outer")
+    ids = df.SK_ID_CURR.values
+    a = agg.reindex(ids)
+    out["active_loans"] = a.active_loans.fillna(0).clip(upper=20).values
+    out["debt_to_income"] = (a.debt.fillna(0).clip(lower=0).values / df.AMT_INCOME_TOTAL.values).clip(max=60)
+    out["overdue_now"] = a.overdue_now.fillna(0).values
+    out["credit_history_years"] = a.credit_history_years.fillna(0).clip(upper=40).values
+    out["new_loans_12m"] = a.new_loans_12m.fillna(0).clip(upper=10).values
+    out["no_credit_history"] = a.isna().all(axis=1).astype(int).values
     out["y"] = df.TARGET.values
     out["gender"] = df.CODE_GENDER.values          # kept only for the fairness check, never a feature
     out["education"] = df.NAME_EDUCATION_TYPE.values
@@ -121,6 +140,9 @@ def main():
         "fairness_mean_predicted_risk": fairness,
         "global_importance": {k: round(v, 4) for k, v in imp.items()},
         "excluded_on_purpose": ["gender", "education", "marital status", "absolute income amounts (currency differs)"],
+        "previous_version": {"features": 10, "roc_auc": 0.6211, "note": "v1 had no credit-bureau facts"},
+        "no_history_default_rate": round(float(df.loc[X.no_credit_history == 1, "y"].mean()), 4),
+        "with_history_default_rate": round(float(df.loc[X.no_credit_history == 0, "y"].mean()), 4),
     }
     (ART / "risk_metadata.json").write_text(json.dumps(meta, indent=2))
     print(json.dumps({k: meta[k] for k in ("rows", "base_default_rate", "bands", "metrics", "fairness_mean_predicted_risk", "global_importance")}, indent=1))

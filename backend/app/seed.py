@@ -34,19 +34,26 @@ def _applicant(rng: random.Random) -> dict:
         emp = "pensioner"
     income = round(min(max(rng.lognormvariate(13.9, 0.55), 180_000), 9_500_000), -4)
     age = rng.randint(23, 55)
-    cibil = int(min(900, max(320, rng.gauss(730, 70))))
+    cibil = int(min(900, max(320, rng.gauss(752, 55))))
     d = {"age": age, "no_of_dependents": rng.randint(0, 4), "income_annum": income, "cibil_score": cibil,
-         "employment_type": emp, "years_in_job": round(min(age - 20, rng.choice([0.5, 1, 2, 3, 5, 8, 12])), 1),
-         "existing_emi_monthly": round(income / 12 * rng.choice([0, 0, 0, 0.05, 0.1, 0.18, 0.25]), -2),
+         "employment_type": emp, "years_in_job": round(min(age - 20, rng.choice([0.5, 1.5, 2, 3, 4, 5, 8, 12])), 1),
+         "existing_emi_monthly": round(income / 12 * rng.choice([0, 0, 0, 0.05, 0.08, 0.12, 0.2]), -2),
          "residential_assets_value": round(income * rng.uniform(0, 3), -4), "commercial_assets_value": 0,
          "luxury_assets_value": round(income * rng.uniform(0.2, 1.5), -4), "bank_asset_value": round(income * rng.uniform(0.1, 1), -4),
          "no_credit_history": rng.random() < 0.05, "variant": variant}
+    if d["no_credit_history"]:
+        d.update(existing_loans_count=0, outstanding_debt=0, credit_history_years=0, new_loans_12m=0, overdue_now=False)
+    else:
+        loans = rng.choice([0, 0, 1, 1, 1, 2, 2, 3])
+        d.update(existing_loans_count=loans, outstanding_debt=round(income * rng.uniform(0, 1.2) * (loans > 0), -4),
+                 credit_history_years=round(min(age - 18, rng.uniform(1, 15)), 1), new_loans_12m=rng.choice([0, 0, 0, 0, 0, 0, 1, 1, 2, 3]),
+                 overdue_now=rng.random() < 0.02)
     if variant.startswith("hl_"):
         prop = round(income * rng.uniform(2.5, 6), -5)
-        d.update(property_value=prop, loan_amount=round(prop * rng.uniform(0.6, 0.88), -4), loan_term=rng.choice([15, 20, 20, 25]), annual_rate=rng.choice([8.5, 9, 9.5]))
+        d.update(property_value=prop, loan_amount=round(prop * rng.uniform(0.55, 0.8), -4), loan_term=rng.choice([15, 20, 20, 25]), annual_rate=rng.choice([8.5, 9, 9.5]))
         d["loan_term"] = min(d["loan_term"], (70 if se else 60) - age) if (70 if se else 60) - age >= 5 else 5
     elif variant.startswith("pl_"):
-        d.update(loan_amount=round(income * rng.uniform(0.3, 1.2), -4), loan_term=rng.choice([3, 4, 5]) if variant != "pl_flexi_hybrid" else rng.choice([4, 5, 6]),
+        d.update(loan_amount=round(income * rng.uniform(0.15, 0.5), -4), loan_term=rng.choice([3, 4, 5]) if variant != "pl_flexi_hybrid" else rng.choice([4, 5, 6]),
                  annual_rate=rng.choice([11.5, 13, 14.5, 16]))
     elif variant.startswith("cd_"):
         price = round(rng.uniform(15_000, 140_000), -3)
@@ -54,7 +61,7 @@ def _applicant(rng: random.Random) -> dict:
                  loan_term=rng.choice([0.5, 0.75, 1]) if variant == "cd_no_cost" else rng.choice([0.5, 1, 1.5, 2]), annual_rate=rng.choice([16, 18, 20]))
     else:
         price = round(rng.uniform(600_000, 2_000_000), -4) if variant == "vl_new_car" else round(rng.uniform(70_000, 250_000), -3)
-        d.update(asset_price=price, loan_amount=round(price * rng.uniform(0.7, 0.92), -3),
+        d.update(asset_price=price, loan_amount=round(price * rng.uniform(0.65, 0.88), -3),
                  loan_term=rng.choice([3, 4, 5, 7]) if variant == "vl_new_car" else rng.choice([1, 2, 3]), annual_rate=rng.choice([9, 10, 12]))
     return d
 

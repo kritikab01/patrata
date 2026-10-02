@@ -1,7 +1,7 @@
 """Combines policy rules and the model into one decision. The LLM is never called
 here: the decision is fully deterministic and reproducible."""
 from . import config as C
-from . import model, products, risk
+from . import approval_v2, model, products, risk
 from .rules import foir, inr, run_rules
 from .schemas import ApplicationIn, Counterfactual, RuleCheck
 
@@ -113,11 +113,27 @@ def counterfactual(app: ApplicationIn, decision: str, checks: list[RuleCheck]) -
         "A credit officer should review."))
 
 
-def decide_product(p: float | None, checks: list[RuleCheck]) -> tuple[str, list[str], list[str]]:
-    """Variant rules are the main gate. The approval model votes only when it was used (p is not None)."""
+def decide_product(p: float | None, checks: list[RuleCheck], cut: dict | None = None) -> tuple[str, list[str], list[str]]:
+    """Variant rules are the main gate. The approval model (v2, real decisions) is a second opinion:
+    an application in its product's bottom 10% goes to a human. It never declines on its own."""
     hard = [c for c in checks if c.status == "fail"]
     soft = [c for c in checks if c.status == "refer"]
     flags = []
+    if cut is not None:
+        if hard:
+            reasons = [f"{c.label}: {c.detail}" for c in hard]
+            if p is not None and p >= cut["strong_above"]:
+                flags.append("model_policy_conflict")
+                reasons.append(f"The approval model rates this application highly ({pct(p)}), but this variant's rules take priority.")
+            return "DECLINE", reasons, flags
+        if soft:
+            return "REFER", [f"{c.label}: {c.detail}" for c in soft], flags
+        if p is not None and p < cut["review_below"]:
+            flags.append("model_policy_conflict")
+            return "REFER", [f"Every rule passes, but the approval model, trained on real lending decisions, puts this application "
+                             f"in the bottom 10% for its product ({pct(p)}). Similar applicants were refused "
+                             f"{cut['refused_rate_bottom10'] * 100:.0f}% of the time, so a credit officer should look."], flags
+        return "APPROVE", ["Every check for this variant passes" + (f", and the approval model agrees ({pct(p)})." if p is not None else ".")], flags
     if hard:
         reasons = [f"{c.label}: {c.detail}" for c in hard]
         if p is not None and p >= C.APPROVE_AT:
@@ -149,7 +165,8 @@ def counterfactual_product(app: ApplicationIn, v: dict, decision: str, checks: l
         return Counterfactual(possible=True, loan_amount=app.loan_amount, loan_term=app.loan_term, summary="No change needed.")
     fixed = {"employment": "this variant isn't offered for this employment type", "age": "the applicant is below the minimum age",
              "income": "income is below this variant's minimum", "cibil": "the credit score needs a decision first",
-             "job_years": "job or business history needs checking first"}
+             "job_years": "job or business history needs checking first", "overdue": "an overdue payment must be cleared first",
+             "credit_hunger": "recent borrowing needs a credit officer's look first"}
     for c in checks:
         if c.id in fixed and c.status != "pass" and not (c.id == "cibil" and c.status == "refer" and app.cibil_score is None and False):
             return Counterfactual(possible=False, summary=f"Changing the amount or tenure won't help: {fixed[c.id]}.")
@@ -163,10 +180,12 @@ def counterfactual_product(app: ApplicationIn, v: dict, decision: str, checks: l
         cands += [{"loan_amount": min(amt, crit["amount_max"]), "loan_term": m / 12} for m in months]
     if not cands:
         return Counterfactual(possible=False, summary="No smaller amount fits this variant's limits. A credit officer should review.")
-    probs = model.predict(app, cands) if model_used else [None] * len(cands)
+    probs = approval_v2.predict(app, cands) if model_used else [None] * len(cands)
+    low = approval_v2.cutoffs(app)["review_below"] if model_used else 0
+    tmax = approval_v2.load()[1]["training_ranges"]["tenure_months"][1] if model_used else 10_000
     risks = risk.probability(app, cands)
     for cand, p, rp in zip(cands, probs, risks):
-        if model_used and p < C.APPROVE_AT:
+        if model_used and (p < low or cand["loan_term"] * 12 > tmax):   # only suggest options the model can vouch for
             continue
         ch = products.evaluate(app, v, cand["loan_amount"], cand["loan_term"], risk_p=float(rp))
         if all(c.status == "pass" for c in ch):
@@ -187,13 +206,21 @@ def assess(app: ApplicationIn, with_counterfactual: bool = True) -> dict:
 
 def assess_product(app: ApplicationIn, with_counterfactual: bool = True) -> dict:
     prod, v = products.get(app.variant)
-    ood = [] if app.no_credit_history else model.out_of_range(app)
-    model_used = not app.no_credit_history and not ood
-    p = float(model.predict(app)[0]) if model_used else None
-    note = None if model_used else ("Not used: no CIBIL score." if app.no_credit_history else
-                                    "Not used: this loan is outside the data the approval model learned from (" + ", ".join(ood) + ").")
+    t = approval_v2.product_type(app.variant)
+    ood = approval_v2.out_of_range(app) if t else []
+    model_used = bool(t) and not ood
+    p = float(approval_v2.predict(app)[0]) if model_used else None
+    note = (None if model_used else
+            f"Not used: there is no public data with real {prod['name'].lower()} decisions to learn from." if not t else
+            "Not used: this loan is outside the real decisions the approval model learned from (" + ", ".join(ood) + ").")
     checks = products.evaluate(app, v)
-    decision, reasons, flags = decide_product(p, checks)
+    decision, reasons, flags = decide_product(p, checks, approval_v2.cutoffs(app) if model_used else {"strong_above": 1, "review_below": 0, "refused_rate_bottom10": 0})
+    if t and ood and decision == "APPROVE":
+        # The model normally votes on this product but can't vouch for an unusual loan: a human confirms.
+        decision = "REFER"
+        flags.append("outside_training_range")
+        reasons = ["Every rule passes, but this loan is outside the real decisions the approval model learned from ("
+                   + ", ".join(ood) + "), so a credit officer should confirm."]
     if app.no_credit_history:
         flags.append("new_to_credit")
     if not model_used:
@@ -202,8 +229,8 @@ def assess_product(app: ApplicationIn, with_counterfactual: bool = True) -> dict
     f = next(c for c in checks if c.id == "foir")
     return {
         "decision": decision, "approval_probability": None if p is None else round(p, 4), "reasons": reasons,
-        "rule_checks": checks, "drivers": model.drivers(app) if model_used else [],
-        "counterfactual": (counterfactual_product(app, v, decision, checks, model_used) if with_counterfactual
+        "rule_checks": checks, "drivers": approval_v2.drivers(app) if model_used else [],
+        "counterfactual": (counterfactual_product(app, v, decision, checks, bool(t)) if with_counterfactual
                            else Counterfactual(possible=False, summary="")),
         "flags": flags, "emi_estimate": round(e["emi"], 2),
         "repayment_risk": risk.assess(app),

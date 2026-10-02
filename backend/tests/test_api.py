@@ -507,11 +507,12 @@ def test_no_cost_emi_charges_zero_interest(client):
     assert r["emi_detail"]["rate"] == 0 and abs(r["emi_estimate"] - 5_000) < 1
 
 
-def test_consumer_loan_decided_by_rules_when_model_does_not_apply(client):
-    r = client.post("/api/score", json=prod("cd_standard", loan_amount=50_000, loan_term=0.75, asset_price=60_000,
-                                            income_annum=480_000)).json()
-    assert r["approval_probability"] is None and r["approval_model_note"].startswith("Not used")
-    assert r["decision"] == "APPROVE"
+def test_consumer_loan_uses_real_decision_model_but_home_loan_does_not(client):
+    cd = client.post("/api/score", json=prod("cd_standard", loan_amount=50_000, loan_term=0.75, asset_price=60_000,
+                                             income_annum=480_000)).json()
+    assert cd["approval_probability"] is not None and cd["decision"] == "APPROVE"
+    hl = client.post("/api/score", json=prod("hl_salaried", property_value=6_500_000)).json()
+    assert hl["approval_probability"] is None and "home loan decisions" in hl["approval_model_note"]
 
 
 def test_two_wheeler_first_time_borrower_is_referred(client):
@@ -547,3 +548,50 @@ def test_assistant_knows_the_product_book():
     from app import assistant as A
     r = A.answer("Who can apply for a two-wheeler loan?")
     assert r["sources"][0]["title"] == "Vehicle loan: Two-wheeler loan"
+
+
+# ---------------- Step 3: real-decision approval model and credit-report facts ----------------
+def test_bottom_20_percent_goes_to_a_human(client, monkeypatch):
+    from app import approval_v2
+    monkeypatch.setattr(approval_v2, "predict", lambda app, overrides=None: [0.05] * (len(overrides) if overrides else 1))
+    r = client.post("/api/score", json=prod("pl_salaried", loan_amount=500_000, loan_term=3, annual_rate=14)).json()
+    assert r["decision"] == "REFER" and "model_policy_conflict" in r["flags"] and "bottom 10%" in r["reasons"][0]
+
+
+def test_overdue_payment_declines_and_cannot_be_fixed_by_amount(client):
+    r = client.post("/api/score", json=prod("pl_salaried", loan_amount=500_000, loan_term=3, annual_rate=14, overdue_now=True)).json()
+    assert r["decision"] == "DECLINE" and any(c["id"] == "overdue" for c in r["rule_checks"])
+    assert r["counterfactual"]["possible"] is False
+
+
+def test_many_new_loans_needs_review(client):
+    r = client.post("/api/score", json=prod("pl_salaried", loan_amount=500_000, loan_term=3, annual_rate=14, new_loans_12m=4)).json()
+    assert next(c for c in r["rule_checks"] if c["id"] == "credit_hunger")["status"] == "refer" and r["decision"] != "APPROVE"
+
+
+def test_first_time_borrower_cannot_have_loans(client):
+    r = client.post("/api/score", json=prod("pl_salaried", cibil_score=None, no_credit_history=True, existing_loans_count=2))
+    assert r.status_code == 422 and "first-time borrower" in r.json()["errors"][0]["message"]
+
+
+def test_credit_report_facts_move_repayment_risk(client):
+    sim = lambda **kw: client.post("/api/simulate", json={**prod("pl_salaried", loan_amount=500_000, loan_term=3, annual_rate=14), **kw}).json()
+    rk = lambda r: float(next(c for c in r["rule_checks"] if c["id"] == "repayment")["value"].rstrip("%"))
+    clean = sim(credit_history_years=12)
+    stressed = sim(credit_history_years=12, existing_loans_count=5, outstanding_debt=2_500_000, new_loans_12m=2)
+    assert rk(stressed) > rk(clean)
+
+
+def test_model_card_reports_both_real_data_models(client):
+    m = client.get("/api/model-card").json()
+    assert m["approval_v2"]["training_rows"] > 1_000_000 and set(m["approval_v2"]["metrics"]["per_product"]) == {"cash", "consumer", "revolving"}
+    assert m["risk_model"]["metrics"]["roc_auc"] > m["risk_model"]["previous_version"]["roc_auc"]
+
+
+def test_loan_outside_model_data_goes_to_a_human_not_approved(client):
+    """E-Q7: a 6-year Flexi loan is beyond the real decisions the model saw, so it can't sneak through as approved."""
+    r = client.post("/api/score", json=prod("pl_flexi_hybrid", loan_amount=800_000, loan_term=6, annual_rate=14,
+                                            existing_loans_count=1, outstanding_debt=300_000, credit_history_years=8)).json()
+    assert r["decision"] == "REFER" and "outside_training_range" in r["flags"]
+    cf = r["counterfactual"]
+    assert cf["possible"] and cf["loan_term"] <= 5

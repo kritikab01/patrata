@@ -25,6 +25,8 @@ FOIR_HARD_CAP = 0.65                 # above 65% -> Decline
 DEFAULT_ANNUAL_RATE = 12.0           # % p.a., used only to estimate EMI
 
 # ---- Decision policy on model probability ----
+CREDIT_HUNGER_REVIEW_AT = 3      # 3+ new loans in 12 months -> review (Patrata assumption)
+DEFAULT_HISTORY_YEARS = 5.0       # used only if credit history length isn't entered
 APPROVE_AT = 0.75                    # p(approve) >= this AND no flags -> Approve
 DECLINE_BELOW = 0.30                 # p(approve) < this AND a soft flag -> Decline
 

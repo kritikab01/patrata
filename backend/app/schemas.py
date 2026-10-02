@@ -20,6 +20,11 @@ class ApplicationIn(BaseModel):
     product: Optional[str] = Field(None, description="personal, home, consumer or vehicle")
     variant: Optional[str] = Field(None, description="A variant id from the product book")
     property_value: Optional[float] = Field(None, gt=0, le=10_000_000_000, description="Home loans: property value in ₹")
+    existing_loans_count: int = Field(0, ge=0, le=50, description="Active loans and credit cards on the credit report")
+    outstanding_debt: float = Field(0, ge=0, le=1_000_000_000, description="Total outstanding on those loans, ₹")
+    overdue_now: bool = Field(False, description="Is any loan or card payment overdue right now?")
+    credit_history_years: Optional[float] = Field(None, ge=0, le=60, description="Years since the first loan or card")
+    new_loans_12m: int = Field(0, ge=0, le=30, description="Loans or cards opened in the last 12 months")
     asset_price: Optional[float] = Field(None, gt=0, le=1_000_000_000, description="Vehicle or product price in ₹")
     residential_assets_value: float = Field(0, ge=0)
     commercial_assets_value: float = Field(0, ge=0)
@@ -46,9 +51,13 @@ class ApplicationIn(BaseModel):
             if v["criteria"].get("ltv") == "asset" and not self.asset_price:
                 raise ValueError("Enter the price of the vehicle or product.")
         if self.no_credit_history:
+            if self.existing_loans_count or self.outstanding_debt or self.overdue_now or self.new_loans_12m or (self.credit_history_years or 0) > 0:
+                raise ValueError("A first-time borrower can't have existing loans or credit history. Untick 'No credit history yet' or set those to 0.")
             self.cibil_score = None
         elif self.cibil_score is None:
             raise ValueError("Enter the CIBIL score, or choose 'No credit history yet'.")
+        if self.credit_history_years is not None and self.credit_history_years > max(0, self.age - 16):
+            raise ValueError("Years of credit history can't be more than the applicant's age minus 16.")
         if self.existing_emi_monthly >= self.income_annum / 12:
             raise ValueError("Existing EMIs are equal to or higher than monthly income. Check both figures.")
         if self.years_in_job > max(0, self.age - 15):

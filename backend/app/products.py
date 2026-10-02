@@ -149,6 +149,15 @@ def evaluate(app, v: dict, amount: float | None = None, term_years: float | None
             f"Down payment {inr(max(0, price - amt))}." if ltv <= cap_ else
             f"This variant funds at most {cap_ * 100:g}% of the price; a bigger down payment is needed.")
 
+    # 10b. Credit-report behaviour: an overdue payment now, and many new loans in a short time
+    from . import config as C
+    if app.overdue_now:
+        add("overdue", "Payment overdue now", "fail", "Yes", "no overdue payments",
+            "A loan or card payment is overdue. It must be cleared before a new loan.")
+    if app.new_loans_12m >= C.CREDIT_HUNGER_REVIEW_AT:
+        add("credit_hunger", "New loans in the last year", "refer", str(app.new_loans_12m), f"fewer than {C.CREDIT_HUNGER_REVIEW_AT}",
+            "Several new loans in a short time can signal financial stress (Patrata policy assumption).")
+
     # 11. Repayment risk from the model trained on 307,511 real loans
     from . import risk
     p = risk_p if risk_p is not None else float(risk.probability(app, [{"loan_amount": amt, "loan_term": years}])[0])

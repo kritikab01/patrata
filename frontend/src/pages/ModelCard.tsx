@@ -4,8 +4,8 @@ import { api } from '../lib/api'
 import { Card, CardTitle, Kpi, PageHead, Skeleton } from '../components/ui'
 
 const STACK = [
-  ['Machine learning', 'Two XGBoost models with monotone constraints and SHAP: approval (4,269 Indian applications) and repayment risk (307,511 real loans)'],
-  ['Backend', 'FastAPI with Pydantic validation, SQLite audit log, 76 automated tests'],
+  ['Machine learning', 'XGBoost with monotone constraints and SHAP: approval v2 (1,046,997 real decisions by product), repayment risk (307,511 real loans plus 1.7 million credit-bureau records); v1 approval model kept for comparison'],
+  ['Backend', 'FastAPI with Pydantic validation, SQLite audit log, 83 automated tests'],
   ['Generative AI', 'Llama 3.3 70B on Groq (free tier) for explanations and the assistant; Gemini, OpenAI, OpenRouter or local Ollama with one setting'],
   ['Retrieval', 'BM25 search over Patrata\'s policy notes, with cited answers'],
   ['AI agent', 'Review Agent: the LLM plans tool calls (re-score, policy lookup, loan cost) in a guarded loop and drafts a memo; a person decides'],
@@ -40,7 +40,7 @@ export default function ModelCard() {
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
-              <CardTitle sub="A simple rule is already strong on this data, so we say so openly">Accuracy compared</CardTitle>
+              <CardTitle sub="Approval model v1, synthetic data. Used only when no product is chosen; kept for comparison">Accuracy compared (v1)</CardTitle>
               <div className="h-[190px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={acc} layout="vertical" margin={{ left: 10, right: 50 }}>
@@ -104,6 +104,27 @@ export default function ModelCard() {
             </Card>
           </div>
 
+          {m.approval_v2 && (() => {
+            const a = m.approval_v2
+            const name: Record<string, string> = { cash: 'Personal and Flexi loans', consumer: 'Consumer durable loans', revolving: 'Credit lines (not used by a variant)' }
+            return (
+              <Card>
+                <CardTitle sub={`${a.data_source}. ${a.training_rows.toLocaleString('en-IN')} real decisions after leakage checks. Version ${a.model_version}.`}>Approval model v2: learned from real lending decisions</CardTitle>
+                <p className="mb-3 text-sm">Overall ROC-AUC <b>{a.metrics.roc_auc.toFixed(3)}</b> (logistic regression {a.metrics.logistic_regression_roc_auc.toFixed(3)}). It is a second opinion: an application in its product's bottom 10% goes to a credit officer. It never declines on its own, and it doesn't see CIBIL (the data has none), so CIBIL stays a per-variant rule.</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[560px] text-left text-sm">
+                    <thead><tr className="text-muted"><th className="pb-1 font-medium">Product</th><th className="pb-1 font-medium">Approved in data</th><th className="pb-1 font-medium">ROC-AUC</th><th className="pb-1 font-medium">Refused: bottom 10%</th><th className="pb-1 font-medium">Refused: everyone else</th></tr></thead>
+                    <tbody>{Object.entries(a.metrics.per_product as Record<string, any>).map(([k, v]) => (
+                      <tr key={k}><td className="border-t border-line-2 py-1.5">{name[k] || k}</td><td className="border-t border-line-2">{Math.round(v.approval_rate * 100)}%</td>
+                        <td className="border-t border-line-2">{v.roc_auc.toFixed(3)}</td><td className="border-t border-line-2 font-semibold text-bad">{Math.round(v.refused_rate_bottom10 * 100)}%</td>
+                        <td className="border-t border-line-2">{Math.round(v.refused_rate_rest * 100)}%</td></tr>))}</tbody>
+                  </table>
+                </div>
+                <p className="mt-3 text-[13px] text-muted">Leakage checks: {a.leakage_checks.join('; ')}. Not covered: {a.not_covered.join('; ')}. Average predicted approval: women {(a.fairness_mean_predicted_approval.F * 100).toFixed(1)}%, men {(a.fairness_mean_predicted_approval.M * 100).toFixed(1)}%.</p>
+              </Card>
+            )
+          })()}
+
           {m.risk_model && (() => {
             const k = m.risk_model
             const lift = k.metrics.decile_lift.map((v: number, i: number) => ({ d: `${i + 1}`, v }))
@@ -113,7 +134,8 @@ export default function ModelCard() {
                 <div className="grid gap-6 lg:grid-cols-3">
                   <div className="space-y-3 text-sm">
                     <p>Predicts the chance of payment difficulties using only currency-free facts: EMI as a share of income, age, years in the job, employment type, dependents, and home and vehicle ownership.</p>
-                    <p><b>ROC-AUC {k.metrics.roc_auc.toFixed(3)}</b> (logistic regression {k.metrics.logistic_regression_roc_auc.toFixed(3)}). Modest, and realistic: real default prediction is hard, which is why this model informs the decision and never declines alone.</p>
+                    <p><b>ROC-AUC {k.metrics.roc_auc.toFixed(3)}</b>, up from {k.previous_version?.roc_auc?.toFixed(3)} before credit-report facts (active loans, outstanding debt, overdue now, history length, recent loans) were added. Realistic for real default prediction, which is why it informs the decision and never declines alone.</p>
+                    {k.no_history_default_rate != null && <p>First-time borrowers defaulted {(k.no_history_default_rate * 100).toFixed(1)}% of the time vs {(k.with_history_default_rate * 100).toFixed(1)}% with a history: riskier, but not enough to decline them outright.</p>}
                     <p className="text-muted">Excluded on purpose: {k.excluded_on_purpose.join(', ')}.</p>
                   </div>
                   <div>

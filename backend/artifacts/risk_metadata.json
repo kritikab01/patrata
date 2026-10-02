@@ -1,5 +1,5 @@
 {
-  "model_version": "20261001-0310",
+  "model_version": "20261002-0306",
   "data_source": "Kaggle: Home Credit Default Risk (application_train.csv), 307,511 real loans",
   "rows": 307499,
   "base_default_rate": 0.0807,
@@ -13,7 +13,13 @@
     "emp_self_employed",
     "emp_government",
     "emp_pensioner",
-    "emp_not_employed"
+    "emp_not_employed",
+    "active_loans",
+    "debt_to_income",
+    "overdue_now",
+    "credit_history_years",
+    "new_loans_12m",
+    "no_credit_history"
   ],
   "labels": {
     "payment_to_income": "New EMI as share of income",
@@ -25,7 +31,13 @@
     "emp_self_employed": "Self-employed",
     "emp_government": "Government job",
     "emp_pensioner": "Pensioner",
-    "emp_not_employed": "Not employed"
+    "emp_not_employed": "Not employed",
+    "active_loans": "Active loans and cards",
+    "debt_to_income": "Outstanding debt vs monthly income",
+    "overdue_now": "A payment overdue now",
+    "credit_history_years": "Years of credit history",
+    "new_loans_12m": "New loans in the last year",
+    "no_credit_history": "No credit history"
   },
   "monotone_constraints": {
     "payment_to_income": 1,
@@ -37,7 +49,13 @@
     "emp_self_employed": 0,
     "emp_government": 0,
     "emp_pensioner": 0,
-    "emp_not_employed": 0
+    "emp_not_employed": 0,
+    "active_loans": 0,
+    "debt_to_income": 1,
+    "overdue_now": 1,
+    "credit_history_years": 0,
+    "new_loans_12m": 1,
+    "no_credit_history": 0
   },
   "bands": {
     "low_below": 0.0605,
@@ -83,63 +101,93 @@
     "emp_not_employed": [
       0.0,
       0.0
+    ],
+    "active_loans": [
+      0.0,
+      9.0
+    ],
+    "debt_to_income": [
+      0.0,
+      43.68159202416677
+    ],
+    "overdue_now": [
+      0.0,
+      1.0
+    ],
+    "credit_history_years": [
+      0.0,
+      7.983572895277208
+    ],
+    "new_loans_12m": [
+      0.0,
+      7.0
+    ],
+    "no_credit_history": [
+      0.0,
+      1.0
     ]
   },
   "metrics": {
-    "roc_auc": 0.6215,
-    "logistic_regression_roc_auc": 0.6187,
-    "brier": 0.0732,
+    "roc_auc": 0.6612,
+    "logistic_regression_roc_auc": 0.6577,
+    "brier": 0.0721,
     "test_rows": 61500,
     "band_outcomes": {
       "low": {
-        "share": 0.362,
-        "actual_default_rate": 0.0514
+        "share": 0.402,
+        "actual_default_rate": 0.0423
       },
       "medium": {
-        "share": 0.494,
-        "actual_default_rate": 0.0861
+        "share": 0.432,
+        "actual_default_rate": 0.0881
       },
       "high": {
-        "share": 0.144,
-        "actual_default_rate": 0.1362
+        "share": 0.165,
+        "actual_default_rate": 0.1551
       }
     },
     "decile_lift": [
-      0.51,
-      0.58,
-      0.72,
-      0.77,
-      0.78,
-      0.92,
-      1.16,
-      1.28,
-      1.48,
-      1.81
+      0.37,
+      0.49,
+      0.55,
+      0.68,
+      0.8,
+      0.97,
+      1.05,
+      1.38,
+      1.49,
+      2.23
     ],
-    "top_vs_bottom_decile": 3.5
+    "top_vs_bottom_decile": 6.0
   },
   "fairness_mean_predicted_risk": {
     "gender": {
-      "F": 0.0797,
-      "M": 0.0826
+      "F": 0.0803,
+      "M": 0.0817
     },
     "education": {
-      "Higher education": 0.0798,
-      "Incomplete higher": 0.1004,
-      "Lower secondary": 0.0786,
-      "Secondary / secondary special": 0.0802
+      "Higher education": 0.0795,
+      "Incomplete higher": 0.1011,
+      "Lower secondary": 0.0793,
+      "Secondary / secondary special": 0.0803
     }
   },
   "global_importance": {
-    "age": 0.2595,
-    "years_in_job": 0.2286,
-    "payment_to_income": 0.1047,
-    "owns_vehicle": 0.0945,
-    "emp_self_employed": 0.0802,
-    "emp_pensioner": 0.078,
-    "emp_government": 0.047,
-    "no_of_dependents": 0.0325,
-    "owns_home": 0.0197,
+    "credit_history_years": 0.2394,
+    "age": 0.2291,
+    "years_in_job": 0.199,
+    "debt_to_income": 0.1269,
+    "payment_to_income": 0.1167,
+    "new_loans_12m": 0.1101,
+    "active_loans": 0.0939,
+    "owns_vehicle": 0.0852,
+    "emp_pensioner": 0.0743,
+    "emp_self_employed": 0.0742,
+    "emp_government": 0.0492,
+    "no_of_dependents": 0.0247,
+    "overdue_now": 0.0152,
+    "owns_home": 0.0115,
+    "no_credit_history": 0.0026,
     "emp_not_employed": 0.0
   },
   "excluded_on_purpose": [
@@ -147,5 +195,12 @@
     "education",
     "marital status",
     "absolute income amounts (currency differs)"
-  ]
+  ],
+  "previous_version": {
+    "features": 10,
+    "roc_auc": 0.6211,
+    "note": "v1 had no credit-bureau facts"
+  },
+  "no_history_default_rate": 0.1013,
+  "with_history_default_rate": 0.0773
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { BookOpen, Car, Home, Lock, Smartphone, Sparkles, Wallet } from 'lucide-react'
 import { api, ApiError, newRequestId } from '../lib/api'
-import { BASE, EXAMPLES, FIELDS, STEPS, type FieldDef } from '../lib/fields'
+import { BASE, CREDIT_FIELDS, EXAMPLES, FIELDS, STEPS, type FieldDef } from '../lib/fields'
 import { criteriaLines, findVariant, needsPrice, needsProperty, usesMonths, useBook, type Variant } from '../lib/products'
 import type { Application, Result, Simulation } from '../lib/types'
 import { inr, inrShort, pct, WORD } from '../lib/format'
@@ -10,7 +10,7 @@ import { Button, Card, CibilMeter, cx, DecisionPill, FoirMeter, Notice, PageHead
 
 type Form = Record<keyof Application, string>
 const toForm = (a: Partial<Application>): Form =>
-  Object.fromEntries(FIELDS.map((f) => [f.id, a[f.id] == null ? '' : String(a[f.id])])) as Form
+  Object.fromEntries(FIELDS.map((f) => [f.id, f.id === 'overdue_now' ? (a.overdue_now ? 'yes' : 'no') : a[f.id] == null ? '' : String(a[f.id])])) as Form
 const num = (v?: string | null) => (v == null || String(v).trim() === '' ? null : Number(String(v).replace(/,/g, '')))
 const pretty = (f: FieldDef, raw: string) => (f.kind === 'inr' && raw !== '' ? new Intl.NumberFormat('en-IN').format(Number(raw)) : raw)
 const PRODUCT_ICON: Record<string, any> = { personal: Wallet, home: Home, consumer: Smartphone, vehicle: Car }
@@ -61,13 +61,14 @@ export default function NewApplication() {
     fields.forEach((f) => { o[f.id] = f.kind === 'select' ? 0 : num(form[f.id]) })
     return o
   }, [form, variant])
-  const complete = Boolean(v) && fields.every((f) => (f.id === 'cibil_score' && ntc) || (values[f.id] !== null && !Number.isNaN(values[f.id])))
+  const complete = Boolean(v) && fields.every((f) => ((f.id === 'cibil_score' || CREDIT_FIELDS.includes(f.id)) && ntc) || (values[f.id] !== null && !Number.isNaN(values[f.id])))
   const payloadOf = (src: Form, n = ntc, vid = variant) => {
     const fv = findVariant(book, vid)?.v
     const out: Record<string, unknown> = { variant: vid, no_credit_history: n }
     for (const f of FIELDS) {
       const show = f.when === 'property' ? needsProperty(fv) : f.when === 'price' ? needsPrice(fv) : true
-      out[f.id] = !show ? null : f.kind === 'select' ? src[f.id] : f.id === 'cibil_score' && n ? null : num(src[f.id])
+      out[f.id] = !show ? null : f.id === 'overdue_now' ? (!n && src[f.id] === 'yes') : f.kind === 'select' ? src[f.id]
+        : f.id === 'cibil_score' && n ? null : n && CREDIT_FIELDS.includes(f.id) ? 0 : num(src[f.id])
     }
     if (fv?.special?.type === 'zero_interest') out.annual_rate = 0
     return out
@@ -95,7 +96,7 @@ export default function NewApplication() {
   const stepValid = (i: number) => {
     if (i === 0) { if (!v) { setFormError('Choose a product and a variant first.'); return false } return true }
     const miss: Record<string, string> = {}
-    fields.filter((f) => f.step === i).forEach((f) => { if (values[f.id] === null && !(f.id === 'cibil_score' && ntc)) miss[f.id] = 'Required' })
+    fields.filter((f) => f.step === i).forEach((f) => { if (values[f.id] === null && !((f.id === 'cibil_score' || CREDIT_FIELDS.includes(f.id)) && ntc)) miss[f.id] = 'Required' })
     setErrors((p) => ({ ...p, ...miss }))
     return !Object.keys(miss).length
   }
@@ -232,7 +233,7 @@ export default function NewApplication() {
                 <div key={f.id} className={cx('flex min-w-0 flex-col gap-1.5', f.wide && 'sm:col-span-2')}>
                   <label htmlFor={f.id} className="text-[13px] text-muted">{label(f)}</label>
                   {f.kind === 'select' ? (
-                    <select id={f.id} value={form[f.id]} onChange={(e) => setForm((p) => ({ ...p, [f.id]: e.target.value }))}
+                    <select id={f.id} value={form[f.id]} disabled={ntc && CREDIT_FIELDS.includes(f.id)} onChange={(e) => setForm((p) => ({ ...p, [f.id]: e.target.value }))}
                       className="h-12 w-full rounded-[10px] border border-field bg-white px-3 text-base outline-none focus:border-ink">
                       {f.options!.map(([val, l]) => <option key={val} value={val}>{l}</option>)}
                     </select>
@@ -246,7 +247,7 @@ export default function NewApplication() {
                     <div className="relative flex items-center">
                       {f.kind === 'inr' && <span className="pointer-events-none absolute left-3 text-muted" aria-hidden="true">₹</span>}
                       <input id={f.id} inputMode={f.kind === 'dec' ? 'decimal' : 'numeric'} autoComplete="off"
-                        disabled={(f.id === 'cibil_score' && ntc) || (f.id === 'annual_rate' && v?.special?.type === 'zero_interest')}
+                        disabled={((f.id === 'cibil_score' || CREDIT_FIELDS.includes(f.id)) && ntc) || (f.id === 'annual_rate' && v?.special?.type === 'zero_interest')}
                         value={pretty(f, form[f.id])} onChange={(e) => set(f, e.target.value)}
                         aria-invalid={Boolean(errors[f.id])} aria-describedby={`${f.id}-h`}
                         className={cx('h-12 w-full rounded-[10px] border bg-white text-base outline-none focus:border-ink disabled:bg-paper', f.kind === 'inr' ? 'pl-7 pr-3' : 'px-3', f.suffix && 'pr-16',

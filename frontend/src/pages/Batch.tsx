@@ -54,7 +54,7 @@ export default function Batch() {
   const [filter, setFilter] = useState<'all' | Decision | 'INVALID'>('all')
   const file = useRef<HTMLInputElement>(null)
 
-  const missing = useMemo(() => rows && rows.length ? CSV_COLUMNS.filter((c) => !['ref', 'variant', 'property_value', 'asset_price'].includes(c) && !(c in rows[0])) : [], [rows])
+  const missing = useMemo(() => rows && rows.length ? CSV_COLUMNS.filter((c) => !['ref', 'variant', 'property_value', 'asset_price', 'existing_loans_count', 'outstanding_debt', 'overdue_now', 'credit_history_years', 'new_loans_12m'].includes(c) && !(c in rows[0])) : [], [rows])
 
   function onFile(f: File) {
     setOut(null); setErr('')
@@ -69,7 +69,7 @@ export default function Batch() {
     if (!rows) return
     setBusy(true); setErr('')
     try {
-      const payload = rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, k === 'ref' || k === 'variant' ? v || null : k === 'employment_type' ? v || 'salaried' : v === '' ? null : Number(v.replace(/,/g, ''))])))
+      const payload = rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, k === 'ref' || k === 'variant' ? v || null : k === 'employment_type' ? v || 'salaried' : k === 'overdue_now' ? ['true', 'yes', '1'].includes(v.toLowerCase()) : v === '' ? null : Number(v.replace(/,/g, ''))])))
       setOut(await api<Out>('/batch', { json: { rows: payload } }))
     } catch { setErr('Scoring failed. Check the file and try again.') } finally { setBusy(false) }
   }
