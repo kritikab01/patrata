@@ -1,4 +1,9 @@
-# Patrata (पात्रता) — explainable loan pre-screening platform
+# Patrata engine (पात्रता): explainable loan pre-screening API
+
+> **Looking for the app?** The borrower app and lender desk live in **[kritikab01/patrata-app](https://github.com/kritikab01/patrata-app)**
+> (live at [patrata-loan-screener.netlify.app](https://patrata-loan-screener.netlify.app)). This repo is the decision engine behind it:
+> rules, ML models, LLM explanations and the audit log, served as a FastAPI service on Render
+> ([API docs](https://patrata.onrender.com/docs)).
 
 ![CI](../../actions/workflows/ci.yml/badge.svg)
 
@@ -40,7 +45,7 @@ backend/   FastAPI  ──▶ /api/...   (scoring, simulate, batch, reviews, sta
             ├─ assistant.py  BM25 retrieval over knowledge.md + cited LLM answers
             ├─ store.py      SQLite audit log, reviews, dashboard statistics
             └─ seed.py       sample applications for the demo (marked "Sample")
-Dockerfile  one container serves the web app and the API on Hugging Face Spaces
+Dockerfile  one container serves the API (and the original hand-coded web UI) on Render
 ```
 
 ## How a decision is made
@@ -53,16 +58,17 @@ Officer fills the form
  → Range guard       inputs outside the training data → human review
  → Decision policy   rules + probability → Approve / Refer / Decline
  → Counterfactual    smallest amount/term change that would clear all checks
- → LLM (Groq/Llama)  writes the plain-language explanation (EN/हिंदी) — never decides
+ → LLM (Groq)        writes the plain-language explanation (EN/हिंदी) — never decides
  → Audit log         every decision stored with model version
 ```
 
-**The one design rule:** the model decides, the rules act as a safety net, and the LLM only
-explains. The LLM never sees names or IDs, never computes a number, and any number it writes
+**The one design rule:** rules and models decide, and the LLM only explains. Hard rule failures
+decline; soft rules and a weak model score send the case to a person (the model never declines on
+its own). The LLM never sees names or IDs, never computes a number, and any number it writes
 that isn't in the facts it was given causes its answer to be thrown away in favour of a
 deterministic template.
 
-## What we found in the original data, and why we replaced it
+## Legacy v1 dataset: what we found, and why we replaced it
 
 | Finding | Number |
 |---|---|
@@ -170,7 +176,7 @@ It opens full-screen with its own icon, like any installed app.
 | E-Q3 rule vs model disagreement | `model_policy_conflict` flag; `test_model_policy_conflict_is_surfaced` |
 | E-Q5 refresh / double submit | SQLite store + `request_id`; `test_double_submit_is_idempotent` |
 | E-Q6 100 users a day | batch screening, explanation cache, template fallback under free-tier AI rate limits |
-| B-Q6 RAG | assistant retrieves from `knowledge.md`; 12-question retrieval test in `test_assistant_retrieval_eval_passes` |
+| B-Q6 RAG | assistant retrieves from `knowledge.md`; 25-question retrieval test (25/25 top-1) in `test_assistant_retrieval_eval_passes` |
 | C-Q2, C-Q3 human oversight | review queue, mandatory written reason, audited overrides; `test_review_workflow_and_status` |
 | E-Q7 similar inputs, different outputs | `reports/scenario_results.md` CIBIL sweep and ±1% perturbation |
 
@@ -182,4 +188,11 @@ Patterns adapted (not copied) from these open-source projects:
 [LoanLens](https://github.com/SahanaRSetty/LoanLens) (same dataset, SHAP + FastAPI),
 [CreditSentinel](https://github.com/faiber1986/CreditSentinel) (reason codes grounded in SHAP),
 [loan-eligibility-system](https://github.com/Tejeshyewale/loan-eligibility-system) (Hindi/English reasons).
-Dataset: [Loan Approval Prediction Dataset](https://www.kaggle.com/datasets/architsharma01/loan-approval-prediction-dataset) by Archit Sharma.
+Main dataset: [Home Credit Default Risk](https://www.kaggle.com/c/home-credit-default-risk) (Kaggle). Legacy v1 dataset: [Loan Approval Prediction Dataset](https://www.kaggle.com/datasets/architsharma01/loan-approval-prediction-dataset) by Archit Sharma.
+
+## Author and license
+
+Built by **Kritika Bhachawat** (PGDM Business Data Analytics, FORE School of Management) for
+*AI for Managers: Applications and Strategy*. MIT licensed. See the app repo for the
+[PRD](https://github.com/kritikab01/patrata-app/blob/main/docs/PRD.md) and
+[decision log](https://github.com/kritikab01/patrata-app/blob/main/docs/DECISIONS.md).
