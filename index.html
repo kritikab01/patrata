@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      (function() {
+        try {
+          var getNativeFetch = function() {
+            try {
+              return typeof window !== 'undefined' && window.fetch ? window.fetch.bind(window) : undefined;
+            } catch (e) {
+              return undefined;
+            }
+          };
+          var currentFetch = getNativeFetch();
+          var desc = {
+            get: function() {
+              return currentFetch || getNativeFetch();
+            },
+            set: function(fn) {
+              currentFetch = fn;
+            },
+            configurable: true,
+            enumerable: true
+          };
+          try {
+            Object.defineProperty(window, 'fetch', desc);
+          } catch (e1) {
+            try {
+              if (typeof Window !== 'undefined' && Window.prototype) {
+                Object.defineProperty(Window.prototype, 'fetch', desc);
+              }
+            } catch (e2) {}
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0A0A0A" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Patrata" />
+    <title>Patrata — Explainable Loan Pre-Screening</title>
+    <meta name="description" content="Free, explainable loan pre-screening for India: know if you are likely to be approved, why, and what to change. No PAN or Aadhaar needed." />
+    <meta property="og:title" content="Patrata — Explainable Loan Pre-Screening" />
+    <meta property="og:description" content="Free, explainable loan pre-screening for India: know if you are likely to be approved, why, and what to change. No PAN or Aadhaar needed." />
+    <meta property="og:image" content="https://patrata-loan-screener.netlify.app/og-image.png" />
+    <meta property="og:url" content="https://patrata-loan-screener.netlify.app" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Patrata — Explainable Loan Pre-Screening" />
+    <meta name="twitter:description" content="Free, explainable loan pre-screening for India: know if you are likely to be approved, why, and what to change. No PAN or Aadhaar needed." />
+    <meta name="twitter:image" content="https://patrata-loan-screener.netlify.app/og-image.png" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
